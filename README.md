@@ -1,7 +1,3 @@
-# ChatAI-Platform
-Nền tảng chat AI đa agent với web/app, hỗ trợ text/voice/file.
-
-# Cấu trúc dự án
 /docs                # Nơi lưu tất cả tài liệu dự án
 /frontend
   /web (nextjs)      # Code frontend web sau này
