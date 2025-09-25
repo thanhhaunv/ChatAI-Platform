@@ -16,3 +16,16 @@
   /terraform
 /tests               # Test cases
 ```
+
+# ChatAI Platform
+Dự án chat AI đa agent.
+
+## Tài Liệu Chính
+- [BRD](docs/BRD.md)
+- [SRS & User Stories](docs/SRS.md)
+- [Diagrams](docs/Diagrams.md)
+- [Roadmap](docs/Roadmap.md)
+
+## Cấu Trúc Code
+- /frontend: Code UI
+- /services: Microservices backend
