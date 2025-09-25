@@ -1,0 +1,73 @@
+
+---
+
+# 10) API Spec — endpoints chính (System Analyst / Dev Lead)
+
+## Endpoints (short list)
+
+* `POST /auth/oauth/{provider}` — OAuth login (Google/Facebook/TikTok)
+* `POST /auth/signup` — Email/Phone signup
+* `POST /auth/login` — Email/Phone login
+* `GET /projects` / `POST /projects` / `PUT /projects/{id}`
+* `POST /projects/{id}/conversations` — tạo thread mới
+* `GET /projects/{id}/conversations` — list threads (pagination)
+* `POST /projects/{id}/conversations/{thread_id}/messages` — gửi message trong thread
+* `GET /projects/{id}/conversations/{thread_id}/messages` — history (pagination)
+* `GET /agents` / `POST /agents` / `PUT /agents/{id}` / `DELETE /agents/{id}`
+* `POST /agents/{id}/deploy` — trigger self-hosted deploy (admin)
+* `POST /agents/{id}/train` — trigger training (admin, với dataset/params)
+* `GET /billing/report?from=&to=&project=&agent=&conversation=` — export report
+
+## OpenAPI snippet (example)
+
+```yaml
+openapi: 3.0.3
+info:
+  title: ChatAI Platform API
+  version: "0.1.0"
+
+paths:
+  /projects/{projectId}/conversations/{threadId}/messages:
+    post:
+      summary: Send message to agent in conversation thread
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: threadId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                agent_id:
+                  type: integer
+                message:
+                  type: string
+                attachments:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message_id:
+                    type: integer
+                  agent_response:
+                    type: string
+                  tokens_used:
+                    type: number
+```
