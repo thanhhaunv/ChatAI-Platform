@@ -1,3 +1,4 @@
+```
 /docs                # Nơi lưu tất cả tài liệu dự án
 /frontend
   /web (nextjs)      # Code frontend web sau này
@@ -14,3 +15,4 @@
   /k8s
   /terraform
 /tests               # Test cases
+```
