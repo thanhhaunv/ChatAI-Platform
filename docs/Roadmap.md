@@ -173,3 +173,76 @@ Nếu format này ổn (rõ ràng, actionable), bạn confirm để tôi làm ti
 **Deliverable Cuối Milestone**: DB schema ready, testable local với sample data; CI pipeline chạy auto. Total Estimate: 14 hours (~1.5 days).  
 **Jira Integration**: Tạo Epic "Phase 1", add Stories này làm issues (với sub-tasks), attach link GitHub branch và ERD.md từ docs. Nếu complete, mark Done và demo quick (e.g., share screen query DB).
 
+### Tasks Chi Tiết Cho Milestone 2: Auth Service
+
+**Prerequisites/Assumptions**:  
+- Yêu cầu: Milestone 1 complete (DB schema và connection ready). NestJS project đã init ở /services/auth-service (npx nest new auth-service --skip-install để cấu trúc). Cần API keys cho OAuth providers (setup dev accounts trên Google/FB/TikTok console).  
+- Assumptions: Dev quen với authentication flows (JWT/OAuth); nếu không, đọc docs trước. Sử dụng local strategy cho email/phone, OAuth cho social. Buffer thời gian cho config API keys và handle CORS nếu test với frontend sau. Môi trường: .env cho secrets (e.g., JWT_SECRET=strongkey).  
+- Communication: Nếu issue với OAuth callback (e.g., redirect URI mismatch), update Jira hoặc discuss in standup. Use mock providers (e.g., passport-stub) nếu real keys chưa sẵn.  
+
+**Story 2-1: Implement Email/Phone Signup Và Login (Estimate: 4 hours, Assignee: Dev Lead)**  
+- **Reference/Mục Đích:** US-001 (Đăng ký/Đăng nhập bằng Email/Phone). Mục đích: Xử lý auth cơ bản với verify để secure user creation, hỗ trợ non-social login.  
+- Sub-task 1: Install dependencies (npm i @nestjs/passport passport passport-local bcrypt class-validator class-transformer). Tham khảo: https://docs.nestjs.com/security/authentication#implementing-passport-local.  
+- Sub-task 2: Tạo DTOs (signup.dto.ts với validation: email unique, password min 8 chars) và auth.service.ts (hash password với bcrypt, save to User entity từ DB). Ví dụ:  
+  ```typescript
+  import * as bcrypt from 'bcrypt';
+
+  async signup(dto: SignupDto) {
+    const hashed = await bcrypt.hash(dto.password, 10);
+    const user = this.usersRepository.create({ ...dto, password: hashed });
+    return this.usersRepository.save(user);
+  }
+  ```  
+- Sub-task 3: auth.controller.ts với POST /auth/signup và POST /auth/login (validate credentials, return JWT). Handle phone verify nếu cần (tích hợp Twilio sau phase này).  
+- Test Criteria: Unit (Jest): Test hash/compare, e.g., `expect(await bcrypt.compare('testpass', hashed)).toBe(true)`. Integration (Supertest/Postman): Call /signup với body {email, password}, assert 201 và user in DB; /login trả JWT. Edge case: Invalid password trả 401, duplicate email 409.
+
+**Story 2-2: Implement OAuth Flows Cho Social Providers (Estimate: 4 hours, Assignee: Dev Lead)**  
+- **Reference/Mục Đích:** US-001 (Đăng ký bằng Google/Facebook/TikTok). Mục đích: Hỗ trợ quick login với OAuth để tăng user adoption, xử lý profile sync từ providers.  
+- Sub-task 1: Install provider-specific (npm i passport-google-oauth20 passport-facebook passport-tiktok). Config strategies trong auth.module.ts với clientID/secret từ .env. Tham khảo: https://docs.nestjs.com/security/authentication#implementing-passport-google.  
+- Sub-task 2: Thêm routes trong auth.controller.ts: GET /auth/oauth/{provider} (initiate) và GET /auth/oauth/{provider}/callback (handle redirect, create/login user nếu profile match). Ví dụ cho Google:  
+  ```typescript
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  async googleAuth(@Req() req) {}
+
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  async googleAuthRedirect(@Req() req) {
+    return this.authService.login(req.user); // Generate JWT
+  }
+  ```  
+- Sub-task 3: Handle user merge (nếu email từ OAuth exist, link accounts). Add email/phone verify post-OAuth nếu cần (nodemailer cho email confirm).  
+- Test Criteria: Integration (Postman hoặc browser): Simulate flow với dev keys (e.g., redirect to Google login), assert JWT return và user in DB với auth_provider='google'. Edge case: New user creates entry, existing merges; invalid token 401. Use passport-stub cho mock nếu no real keys.
+
+**Story 2-3: Integrate JWT Và Auth Guards (Estimate: 2 hours, Assignee: Dev Lead)**  
+- **Reference/Mục Đích:** Non-functional (Auth: OAuth2 + JWT; tokens expire 1 hour, refresh support từ SRS). Mục đích: Secure API với token-based auth, chuẩn bị cho RBAC ở milestones sau.  
+- Sub-task 1: Install @nestjs/jwt jwt, config JwtModule trong auth.module.ts (secret từ .env, signOptions: { expiresIn: '1h' }).  
+- Sub-task 2: Tạo JwtStrategy và AuthGuard (extend PassportStrategy) để validate token ở middleware. Add refresh token logic (POST /auth/refresh). Ví dụ:  
+  ```typescript
+  import { Strategy } from 'passport-jwt';
+
+  @Injectable()
+  export class JwtStrategy extends PassportStrategy(Strategy) {
+    constructor() {
+      super({
+        jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+        secretOrKey: process.env.JWT_SECRET,
+      });
+    }
+    async validate(payload: any) {
+      return { userId: payload.sub, email: payload.email };
+    }
+  }
+  ```  
+- Test Criteria: Unit: Test token sign/validate. Integration: Login → Get token → Use in header cho protected route (e.g., mock /protected), assert access; expired token 401.
+
+**Story 2-4: CI/CD Update Và Basic Tests Cho Auth (Estimate: 2 hours, Assignee: DevOps)**  
+- **Reference/Mục Đích:** Không trực tiếp US, nhưng hỗ trợ CI/CD pipeline từ BRD. Mục đích: Auto test auth flows để detect regression sớm.  
+- Sub-task 1: Update /.github/workflows/test-db.yaml thành test-backend.yaml (add steps: run auth service, test endpoints với supertest). Handle env secrets in Actions. Tham khảo: https://docs.github.com/en/actions/security-guides/secret-scanning.  
+- Sub-task 2: Add test script in package.json ("test:auth": "jest --coverage"), cover 70%+ (như conventions phần 14).  
+- Test Criteria: Push code → Actions tab assert green (tests pass). Edge case: Fail build nếu coverage <70%.
+
+**Dependencies**: Milestone 1 (DB connection). Branch: feature/milestone-2-auth, tạo PR và review bởi PM/peer trước merge (check security như no hardcode secrets).  
+**Deliverable Cuối Milestone**: Auth service đầy đủ, testable qua Postman/browser (signup/login với JWT, OAuth flows). Total Estimate: 12 hours (~1.5 days).  
+**Jira Integration**: Tạo issues trong Epic "Phase 1", link đến US-001 từ SRS.md và auth endpoints từ API Spec (phần 10). Attach logs/test coverage report khi complete; schedule quick demo (e.g., login flow).
+
