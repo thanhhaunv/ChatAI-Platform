@@ -246,3 +246,71 @@ Nếu format này ổn (rõ ràng, actionable), bạn confirm để tôi làm ti
 **Deliverable Cuối Milestone**: Auth service đầy đủ, testable qua Postman/browser (signup/login với JWT, OAuth flows). Total Estimate: 12 hours (~1.5 days).  
 **Jira Integration**: Tạo issues trong Epic "Phase 1", link đến US-001 từ SRS.md và auth endpoints từ API Spec (phần 10). Attach logs/test coverage report khi complete; schedule quick demo (e.g., login flow).
 
+### Tasks Chi Tiết Cho Milestone 3: User & Project Service Với Threading
+
+**Prerequisites/Assumptions**:  
+- Yêu cầu: Milestone 2 complete (Auth Service với JWT và OAuth sẵn sàng). /services/user-service đã init với NestJS (npx nest new user-service --skip-install). DB từ Milestone 1 có schema USERS, PROJECTS, PROJECT_MEMBERS, CONVERSATIONS. Cần cài TypeORM hoặc Prisma nếu chưa có (npm i @nestjs/typeorm typeorm pg).  
+- Assumptions: Dev quen với CRUD REST APIs và TypeORM relations (ManyToOne/OneToMany). Nếu không, đọc https://typeorm.io/relations trước. Buffer thời gian cho debug FK constraints hoặc RBAC logic. Môi trường: .env có DB credentials và JWT_SECRET từ Milestone 2.  
+- Communication: Nếu issue với relations (e.g., cascade delete), update Jira hoặc Slack #dev-backend. Kickoff meeting (15 mins) để align về RBAC và threading model. PR review kỹ để tránh DB inconsistencies.  
+
+**Story 3-1: Implement User CRUD Endpoints (Estimate: 3 hours, Assignee: Dev Lead)**  
+- **Reference/Mục Đích:** US-005 (Tạo/quản lý Project, invite members). Mục đích: Quản lý user data để hỗ trợ multi-tenant projects và phân quyền RBAC trong hệ thống.  
+- Sub-task 1: Install dependencies nếu cần (npm i @nestjs/config class-validator class-transformer). Tạo user.controller.ts với endpoints: GET /users (list, admin-only), GET /users/:id, PUT /users/:id (update profile), DELETE /users/:id (soft delete). Protect với JwtAuthGuard từ Milestone 2. Ví dụ:  
+  ```typescript
+  @Get()
+  @UseGuards(JwtAuthGuard)
+  async findAll() {
+    return this.usersService.findAll();
+  }
+  ```  
+- Sub-task 2: Tạo user.service.ts, dùng TypeORM repository để query User entity (findByEmail, findById). Implement soft delete (add isActive: boolean). Tham khảo: https://docs.nestjs.com/techniques/database#repository-pattern.  
+- Sub-task 3: Add DTOs (create-user.dto.ts, update-user.dto.ts) với validation (e.g., email format, name length).  
+- Test Criteria: Unit (Jest): Test service methods, e.g., `expect(await service.findByEmail('test@example.com')).toMatchObject({ email: 'test@example.com' })`. Integration (Supertest): Auth với JWT → Call GET /users, assert 200 và array users; DELETE /users/:id, check isActive=false. Edge case: Unauthorized (no JWT) trả 401, invalid ID trả 404.
+
+**Story 3-2: Implement Project CRUD Với Members Management (Estimate: 4 hours, Assignee: Dev Lead)**  
+- **Reference/Mục Đích:** US-005 (Tạo/quản lý Project, invite members). Mục đích: Tạo projects với phân quyền owner/member/viewer để hỗ trợ multi-tenant chat và threads.  
+- Sub-task 1: Tạo entities Project, ProjectMembers trong src/entities/. Ví dụ Project entity:  
+  ```typescript
+  @Entity('projects')
+  export class Project {
+    @PrimaryGeneratedColumn()
+    id: number;
+
+    @Column()
+    name: string;
+
+    @ManyToOne(() => User)
+    owner: User;
+
+    @OneToMany(() => ProjectMember, (member) => member.project)
+    members: ProjectMember[];
+  }
+  ```  
+- Sub-task 2: Tạo project.controller.ts với endpoints: POST /projects (create), GET /projects (list user’s projects), PUT /projects/:id (update), DELETE /projects/:id (soft delete). POST /projects/:id/members (invite with role: owner/member/viewer). Use RBAC guard (e.g., @Roles('admin') hoặc check owner_id).  
+- Sub-task 3: project.service.ts để handle logic: Create project (set owner từ JWT user), invite members (check permissions). Tham khảo: https://nestjs.com/docs/techniques/authorization.  
+- Test Criteria: Integration (Supertest): Auth → POST /projects {name: 'Test Project'}, assert 201 và owner_id match; POST /projects/:id/members, check DB table project_members. Edge case: Non-owner invite trả 403, duplicate member 409.
+
+**Story 3-3: Implement Conversation Threading (Estimate: 3 hours, Assignee: Dev Lead)**  
+- **Reference/Mục Đích:** US-009 (Quản lý conversation threads trong project). Mục đích: Tạo threads để nhóm messages, hỗ trợ AI duy trì context qua thread_id.  
+- Sub-task 1: Tạo conversation.controller.ts với endpoints: POST /projects/:id/conversations (create thread, generate unique thread_id), GET /projects/:id/conversations (list with pagination). Ví dụ:  
+  ```typescript
+  @Post()
+  @UseGuards(JwtAuthGuard)
+  async create(@Param('id') projectId: number, @Body() dto: CreateConversationDto) {
+    return this.conversationService.create(projectId, dto);
+  }
+  ```  
+- Sub-task 2: conversation.service.ts để generate thread_id (UUID hoặc auto-increment), link với project_id. Save metadata (e.g., json {title: 'Thread 1'}).  
+- Sub-task 3: Config TypeORM relations (Conversation → Project, Conversation → Messages).  
+- Test Criteria: Unit: Test thread creation. Integration: Auth → Create project → POST /conversations, assert thread_id in DB và linked project_id. Edge case: Invalid project_id trả 404.
+
+**Story 3-4: CI/CD Update Và Tests Cho User/Project/Threading (Estimate: 2 hours, Assignee: DevOps)**  
+- **Reference/Mục Đích:** Non-functional (CI/CD pipeline từ BRD). Mục đích: Auto test CRUD và threading để đảm bảo stability trước khi tích hợp chat.  
+- Sub-task 1: Update /.github/workflows/test-backend.yaml (add steps: run user-service, test endpoints /users, /projects, /conversations). Use DB service từ Milestone 1.  
+- Sub-task 2: Add test script ("test:user": "jest src/users"), aim 70% coverage. Tham khảo: https://jestjs.io/docs/api.  
+- Test Criteria: Push → GitHub Actions green. Edge case: Fail nếu relations sai (e.g., missing FK).
+
+**Dependencies**: Milestone 2 (Auth Service cho JWT validation). Branch: feature/milestone-3-user-project, PR review bởi PM/peer (check RBAC logic và DB consistency).  
+**Deliverable Cuối Milestone**: APIs cho user/project/threading testable qua Postman (e.g., create project, invite member, add thread). Total Estimate: 12 hours (~1.5 days).  
+**Jira Integration**: Tạo issues trong Epic "Phase 1", link đến US-005 và US-009 từ SRS.md, attach ERD.md và API Spec endpoints (/projects, /conversations). Demo: Show Postman flow (auth → create project → add thread).
+
