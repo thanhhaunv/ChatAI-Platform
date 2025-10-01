@@ -39,6 +39,16 @@ SELECT version();  -- Output: PostgreSQL 15.x
 ```
 
 #### Story 1-2: Implement DB Schema Dựa ERD (6 hours)
+### File .env
+### DB Connection Config (for TypeORM/NestJS to connect to Postgres container)
+```
+DB_HOST=localhost  # Host of the DB (localhost for local Docker)
+DB_PORT=5432  # Port mapped in docker-compose.yml
+DB_USER=admin  # Postgres user from docker-compose environment
+DB_PASS=secret  # Postgres password from docker-compose
+DB_NAME=chatai  # Database name from docker-compose
+```
+
 1. In /services/user-service, npm i @nestjs/typeorm typeorm pg reflect-metadata.  
 2. Tạo src/data-source.ts:  
    ```typescript
