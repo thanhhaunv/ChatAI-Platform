@@ -2,6 +2,10 @@
 ## 2. Chi Tiết Các Phần Cần Làm (Focus Phase 1, Milestone 1)
 Dưới đây là hướng dẫn triển khai chi tiết Milestone 1 (Setup DB/Infra), với code đầy đủ (entities, migration, test scripts). Các milestone sau sẽ theo format tương tự (bạn yêu cầu thì tôi gen full code).  
 
+**Steps**:  
+1. Khởi tạo /services/user-service: `nest new services/user-service --skip-install`.  
+2. Install deps in /services/user-service: `npm i @nestjs/typeorm typeorm pg class-validator class-transformer @nestjs/config reflect-metadata`. Dev: `npm i -D ts-node @types/node jest supertest @nestjs/testing ts-jest`.  
+
 ### Milestone 1: Setup Database Và Infra Basic (Effort: 14 hours, Time: Week 2 Phase 0)
 **Mục Tiêu**: Postgres DB local, schema migrated, NestJS connected, CI/CD running.  
 
