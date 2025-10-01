@@ -451,3 +451,212 @@ Run: `chmod +x setup-milestone1.sh && ./setup-milestone1.sh`. Expected: All step
 - Demo team: 10 mins screen share full flow.  
 
 Hướng dẫn này giờ đã "full code + script" – team chạy ngay được. Nếu cần cho Milestone 2, bảo tôi!
+
+## MIGRATE
+### Giải Thích Và Hướng Dẫn Chạy Lệnh Generate Migration Trong Story 1-2
+
+Tôi sẽ giải thích rõ ràng, chi tiết phần bạn hỏi (từ hướng dẫn Milestone 1, Story 1-2). Phần này là để tạo và edit file migration trong TypeORM – công cụ dùng để quản lý thay đổi schema DB (từ entities bạn đã tạo dựa trên ERD). Tôi sẽ phân tích "để làm gì", "làm thế nào chạy", và cung cấp code full để bạn copy-paste (bao gồm SQL create/drop for all tables, vì "xxxx" là timestamp auto-generated).
+
+#### 1. **Để Làm Gì?**
+- **Mục Đích Của Lệnh `npm run migration:generate InitSchema`**:
+  - TypeORM tự động scan entities (các class như User, Project từ src/entities/) và generate file migration – một script SQL để "apply" schema vào DB (create tables, columns, relations).  
+  - "InitSchema" là tên migration bạn đặt (có thể đổi, nhưng nên descriptive như "InitSchema" cho migration đầu tiên).  
+  - Lệnh này tạo file src/migrations/xxxx-InitSchema.ts (xxxx là timestamp, e.g., 1727234567890-InitSchema.ts), với methods `up` (apply changes, e.g., create tables) và `down` (revert, e.g., drop tables).  
+  - **Lý Do Edit File**: TypeORM generate tự động, nhưng đôi khi missing relations/FK/constraints (e.g., unique, nullable). Bạn edit để add SQL query thủ công, ensure schema đúng ERD (phần 7 tài liệu), tránh lỗi khi run migration. Không edit có thể dẫn đến DB không nhất quán (e.g., no FK, data integrity mất).  
+
+- **Lợi Ích**:  
+  - An toàn: Không dùng `synchronize: true` (auto create schema, nhưng rủi ro mất data ở production).  
+  - Version Control: Migration files git tracked, dễ revert nếu lỗi.  
+  - Team Friendly: Dev khác run `npm run migration:run` để update DB local/staging.  
+
+Nếu không generate/edit, DB không có tables, và services sau (e.g., auth in Milestone 2) sẽ error khi save/query.
+
+#### 2. **Làm Thế Nào Để Chạy Lệnh Và Edit?** (Bước Này Chi Tiết Để Copy-Run Ngay)
+Giả sử bạn ở /services/user-service (cd vào nếu chưa). Đảm bảo:  
+- .env có DB credentials (từ Milestone 1).  
+- package.json có scripts (thêm nếu chưa):  
+  ```json
+  "scripts": {
+    "start:dev": "nest start --watch",
+    "test": "jest",
+    "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/data-source.ts",
+    "migration:generate": "npm run typeorm migration:generate",
+    "migration:run": "npm run typeorm migration:run"
+  }
+  ```  
+  (Thêm tsconfig-paths/register nếu tsconfig.json có paths alias).  
+
+**Bước 1: Generate Migration**  
+- Run: `npm run migration:generate InitSchema`.  
+- Expected Output: Log "migration generated successfully" và file mới src/migrations/1727xxxx-InitSchema.ts (xxxx = timestamp, e.g., 1727234567890-InitSchema.ts). Nếu error (e.g., "No changes in database schema were found"), check entities exist and data-source.ts correct.  
+
+**Bước 2: Edit File Generated**  
+- Mở file src/migrations/xxxx-InitSchema.ts. TypeORM generate basic (e.g., createTable for each entity), nhưng bạn add/edit up/down methods với SQL query full để ensure all fields/relations (based on ERD).  
+- Copy code full dưới vào file (thay xxxx bằng timestamp của bạn):  
+  ```typescript
+  import { MigrationInterface, QueryRunner } from "typeorm";
+
+  export class InitSchema1727234567890 implements MigrationInterface {
+    name = 'InitSchema1727234567890';  // Name with timestamp
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+      // Create users table
+      await queryRunner.query(`
+        CREATE TABLE "users" (
+          "id" SERIAL NOT NULL,
+          "name" character varying(100) NOT NULL,
+          "email" character varying(100) NOT NULL UNIQUE,
+          "phone" character varying(20) UNIQUE,
+          "auth_provider" character varying(50),
+          "role" character varying(50) NOT NULL,
+          "created_at" TIMESTAMP NOT NULL DEFAULT now(),
+          CONSTRAINT "PK_a3ffb1c0c8416b9fc6f907b7433" PRIMARY KEY ("id")
+        )
+      `);
+
+      // Create projects table
+      await queryRunner.query(`
+        CREATE TABLE "projects" (
+          "id" SERIAL NOT NULL,
+          "name" character varying(100) NOT NULL,
+          "owner_id" integer NOT NULL,
+          "created_at" TIMESTAMP NOT NULL DEFAULT now(),
+          CONSTRAINT "PK_132d6834f3f0d47b4d8e6b3f5e8" PRIMARY KEY ("id")
+        )
+      `);
+
+      // Create project_members table
+      await queryRunner.query(`
+        CREATE TABLE "project_members" (
+          "id" SERIAL NOT NULL,
+          "project_id" integer NOT NULL,
+          "user_id" integer NOT NULL,
+          "role" character varying(50) NOT NULL,
+          CONSTRAINT "PK_project_members_id" PRIMARY KEY ("id")
+        )
+      `);
+
+      // Create conversations table
+      await queryRunner.query(`
+        CREATE TABLE "conversations" (
+          "id" SERIAL NOT NULL,
+          "project_id" integer NOT NULL,
+          "title" character varying(100) NOT NULL,
+          "metadata" json,
+          "created_at" TIMESTAMP NOT NULL DEFAULT now(),
+          CONSTRAINT "PK_conversations_id" PRIMARY KEY ("id")
+        )
+      `);
+
+      // Create agents table
+      await queryRunner.query(`
+        CREATE TABLE "agents" (
+          "id" SERIAL NOT NULL,
+          "name" character varying(100) NOT NULL,
+          "type" character varying(20) NOT NULL,
+          "api_endpoint" character varying(200) NOT NULL,
+          "config_json" json NOT NULL,
+          "model_source" character varying(50) NOT NULL,
+          "training_config" json,
+          "version" character varying(20) NOT NULL,
+          "active" boolean NOT NULL DEFAULT true,
+          "created_at" TIMESTAMP NOT NULL DEFAULT now(),
+          CONSTRAINT "PK_agents_id" PRIMARY KEY ("id")
+        )
+      `);
+
+      // Create messages table
+      await queryRunner.query(`
+        CREATE TABLE "messages" (
+          "id" SERIAL NOT NULL,
+          "conversation_id" integer NOT NULL,
+          "user_id" integer NOT NULL,
+          "agent_id" integer NOT NULL,
+          "user_message" text NOT NULL,
+          "agent_response" text NOT NULL,
+          "attachments" json,
+          "tokens_used" real NOT NULL,
+          "created_at" TIMESTAMP NOT NULL DEFAULT now(),
+          CONSTRAINT "PK_messages_id" PRIMARY KEY ("id")
+        )
+      `);
+
+      // Create billing_log table
+      await queryRunner.query(`
+        CREATE TABLE "billing_log" (
+          "id" SERIAL NOT NULL,
+          "user_id" integer NOT NULL,
+          "project_id" integer NOT NULL,
+          "conversation_id" integer NOT NULL,
+          "agent_id" integer NOT NULL,
+          "cost" real NOT NULL,
+          "tokens" real NOT NULL,
+          "timestamp" TIMESTAMP NOT NULL DEFAULT now(),
+          CONSTRAINT "PK_billing_log_id" PRIMARY KEY ("id")
+        )
+      `);
+
+      // Add foreign keys (relations from ERD)
+      await queryRunner.query(`ALTER TABLE "projects" ADD CONSTRAINT "FK_projects_owner_id" FOREIGN KEY ("owner_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
+      await queryRunner.query(`ALTER TABLE "project_members" ADD CONSTRAINT "FK_project_members_project_id" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
+      await queryRunner.query(`ALTER TABLE "project_members" ADD CONSTRAINT "FK_project_members_user_id" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
+      await queryRunner.query(`ALTER TABLE "conversations" ADD CONSTRAINT "FK_conversations_project_id" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
+      await queryRunner.query(`ALTER TABLE "messages" ADD CONSTRAINT "FK_messages_conversation_id" FOREIGN KEY ("conversation_id") REFERENCES "conversations"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
+      await queryRunner.query(`ALTER TABLE "messages" ADD CONSTRAINT "FK_messages_user_id" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+      await queryRunner.query(`ALTER TABLE "messages" ADD CONSTRAINT "FK_messages_agent_id" FOREIGN KEY ("agent_id") REFERENCES "agents"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+      await queryRunner.query(`ALTER TABLE "billing_log" ADD CONSTRAINT "FK_billing_log_user_id" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+      await queryRunner.query(`ALTER TABLE "billing_log" ADD CONSTRAINT "FK_billing_log_project_id" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+      await queryRunner.query(`ALTER TABLE "billing_log" ADD CONSTRAINT "FK_billing_log_conversation_id" FOREIGN KEY ("conversation_id") REFERENCES "conversations"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+      await queryRunner.query(`ALTER TABLE "billing_log" ADD CONSTRAINT "FK_billing_log_agent_id" FOREIGN KEY ("agent_id") REFERENCES "agents"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+      // Drop foreign keys first
+      await queryRunner.query(`ALTER TABLE "billing_log" DROP CONSTRAINT "FK_billing_log_agent_id"`);
+      await queryRunner.query(`ALTER TABLE "billing_log" DROP CONSTRAINT "FK_billing_log_conversation_id"`);
+      await queryRunner.query(`ALTER TABLE "billing_log" DROP CONSTRAINT "FK_billing_log_project_id"`);
+      await queryRunner.query(`ALTER TABLE "billing_log" DROP CONSTRAINT "FK_billing_log_user_id"`);
+      await queryRunner.query(`ALTER TABLE "messages" DROP CONSTRAINT "FK_messages_agent_id"`);
+      await queryRunner.query(`ALTER TABLE "messages" DROP CONSTRAINT "FK_messages_user_id"`);
+      await queryRunner.query(`ALTER TABLE "messages" DROP CONSTRAINT "FK_messages_conversation_id"`);
+      await queryRunner.query(`ALTER TABLE "conversations" DROP CONSTRAINT "FK_conversations_project_id"`);
+      await queryRunner.query(`ALTER TABLE "project_members" DROP CONSTRAINT "FK_project_members_user_id"`);
+      await queryRunner.query(`ALTER TABLE "project_members" DROP CONSTRAINT "FK_project_members_project_id"`);
+      await queryRunner.query(`ALTER TABLE "projects" DROP CONSTRAINT "FK_projects_owner_id"`);
+
+      // Drop tables in reverse order
+      await queryRunner.query(`DROP TABLE "billing_log"`);
+      await queryRunner.query(`DROP TABLE "messages"`);
+      await queryRunner.query(`DROP TABLE "agents"`);
+      await queryRunner.query(`DROP TABLE "conversations"`);
+      await queryRunner.query(`DROP TABLE "project_members"`);
+      await queryRunner.query(`DROP TABLE "projects"`);
+      await queryRunner.query(`DROP TABLE "users"`);
+    }
+
+  }
+  ```  
+  Lưu ý: File name có timestamp (xxxx = auto, e.g., 1727234567890). Edit if generated empty (TypeORM sometimes miss relations, so add manual SQL in up/down as above).  
+
+**Bước 3: Run Migration**  
+- Run: `npm run migration:run`.  
+- Expected Output: Log "migration run successfully", "query: CREATE TABLE users..." for each table. Check in pgAdmin: Tables exist, columns/FK correct per ERD.  
+
+**Bước 4: Test**  
+- Run psql: `psql -h localhost -U admin -d chatai`. Run `\dt` – expected 7 tables listed.  
+
+Nếu error:  
+- No changes found: Check entities imported in data-source.ts, run again.  
+- FK error: Edit migration down/up order (drop FK before tables).  
+
+#### 3. Story 1-3: Config DB Connection Cho Services (2 hours)
+1. Update src/app.module.ts: Copy code full.  
+
+2. Run: `npm run start:dev`. Expected: "Nest application successfully started", "DB connected" log if logging: true.  
+
+#### 4. Story 1-4: CI/CD Basic Cho Milestone (2 hours)
+1. Tạo /.github/workflows/test-db.yaml: Copy code.  
+
+2. Run local test: `npm test`. Push: Actions pass.  
+
+Full, copy-run ngay! Sẵn Milestone 3.
