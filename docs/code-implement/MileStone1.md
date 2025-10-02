@@ -753,3 +753,33 @@ Nếu error:
   }
 }
 ```
+## File tsconfig phải như thế này
+```
+{
+  "compilerOptions": {
+    "module": "commonjs",  // Module system for Node.js
+    "declaration": true,  // Generate .d.ts files
+    "removeComments": true,  // Remove comments in compiled JS
+    "emitDecoratorMetadata": true,  // Required for TypeORM decorators
+    "experimentalDecorators": true,  // Enable decorators (e.g., @Entity)
+    "allowSyntheticDefaultImports": true,  // Allow default imports
+    "target": "es2017",  // Target ES version for compatibility
+    "sourceMap": true,  // Generate source maps for debug
+    "outDir": "./dist",  // Output compiled JS folder
+    "baseUrl": "./",  // Base directory for paths
+    "incremental": true,  // Incremental compile for speed
+    "skipLibCheck": true,  // Skip type checking of libs for faster build
+    "strictNullChecks": false,  // Loose null checks for dev
+    "noImplicitAny": false,  // Loose any type for dev
+    "strictBindCallApply": false,  // Loose bind/call/apply
+    "forceConsistentCasingInFileNames": false,  // Case insensitive filenames
+    "noFallthroughCasesInSwitch": false,  // Loose switch cases
+    "paths": {  // Alias for easy import (e.g., import { User } from 'entities/user.entity')
+      "@entities/*": ["src/entities/*"],
+      "@migrations/*": ["src/migrations/*"]
+    }
+  },
+  "include": ["src/**/*"],  // Include all src files
+  "exclude": ["node_modules", "dist"]  // Exclude build folders
+}
+```
