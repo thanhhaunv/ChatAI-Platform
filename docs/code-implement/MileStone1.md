@@ -74,7 +74,11 @@ DB_NAME=chatai  # Database name from docker-compose
 
 **user.entity.ts**:  
 ```typescript
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany } from 'typeorm';
+import { Project } from './project.entity';  // Import Project for relation
+import { ProjectMember } from './project_member.entity';  // Import ProjectMember for relation
+import { Message } from './message.entity';  // Import Message for relation
+import { BillingLog } from './billing_log.entity';  // Import BillingLog for relation
 
 @Entity('users')
 export class User {
@@ -95,6 +99,18 @@ export class User {
 
   @Column({ length: 50 })
   role: string;
+
+  @OneToMany(() => Project, project => project.owner)  // Relation ngược với Project (one user owns many projects)
+  projects: Project[];
+
+  @OneToMany(() => ProjectMember, member => member.user)  // Relation ngược với ProjectMember (one user in many project members)
+  projectMembers: ProjectMember[];
+
+  @OneToMany(() => Message, message => message.user)  // Relation ngược với Message (one user has many messages)
+  messages: Message[];
+
+  @OneToMany(() => BillingLog, billingLog => billingLog.user)  // Relation ngược với BillingLog (one user has many billing logs)
+  billingLogs: BillingLog[];
 
   @CreateDateColumn()
   created_at: Date;
