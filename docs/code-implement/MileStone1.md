@@ -753,7 +753,7 @@ Nếu error:
   }
 }
 ```
-## File tsconfig phải như thế này
+## File tsconfig phải như thế này: /services/user-service/tsconfig.json
 ```
 {
   "compilerOptions": {
