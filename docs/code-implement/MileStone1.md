@@ -30,7 +30,10 @@ Dưới đây là hướng dẫn triển khai chi tiết Milestone 1 (Setup DB/I
      db-data:
    ```  
 2. Run: `docker-compose up -d`. Output: Container up.  
-3. Verify: `docker ps` (postgres running). psql: `psql -h localhost -U admin -d chatai` → `\l` (chatai exists).  
+3. Verify: `docker ps` (postgres running). psql: `psql -h localhost -U admin -d chatai` → `\l` (chatai exists).  command:
+   ```
+   sudo docker exec -it -e PGPASSWORD=secret dbs-db-1 psql -U admin -d chatai
+   ```
 
 Test Script (psql):  
 ```sql
