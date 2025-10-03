@@ -29,6 +29,8 @@ Dự án chat AI đa agent.
 ## Cấu Trúc Code
 - /frontend: Code UI
 - /services: Microservices backend
-
+github_pat_
 ## Guide to use docker here:
 - https://chatgpt.com/c/68c7be28-89ec-8330-8fda-c2b545bc2e99
+
+11AC4C6OQ0nSyt5wINVLnV_uJ2zwlEIHnT6URPzrVozcQXvD7Myb9MI9akXKNAH980Z6X7NS72dRe1xxnY
