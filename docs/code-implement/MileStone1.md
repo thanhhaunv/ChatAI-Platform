@@ -711,7 +711,7 @@ Nếu error:
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/data-source.ts",
-    "migration:generate": "npm run typeorm migration:generate",
+    "migration:generate": "npm run typeorm -- migration:generate src/migrations/ -- -n",
     "migration:run": "npm run typeorm migration:run"
   },
   "dependencies": {
