@@ -799,3 +799,14 @@ Nếu error:
   "exclude": ["node_modules", "dist"]  // Exclude build folders
 }
 ```
+## Mở /services/user-service/src/main.ts, đảm bảo có nội dung (NestJS auto-gen khi nest new, nhưng check lại):
+```
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  await app.listen(3000);
+}
+bootstrap();
+```
