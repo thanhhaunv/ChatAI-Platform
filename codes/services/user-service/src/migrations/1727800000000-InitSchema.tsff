@@ -1,0 +1,122 @@
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class InitSchema1727800000000 implements MigrationInterface {
+  name = 'InitSchema1727800000000';
+
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
+      CREATE TABLE "users" (
+        "id" SERIAL NOT NULL,
+        "name" character varying(100) NOT NULL,
+        "email" character varying(100) NOT NULL UNIQUE,
+        "phone" character varying(20) UNIQUE,
+        "auth_provider" character varying(50),
+        "role" character varying(50) NOT NULL,
+        "created_at" TIMESTAMP NOT NULL DEFAULT now(),
+        CONSTRAINT "PK_users_id" PRIMARY KEY ("id")
+      )
+    `);
+    await queryRunner.query(`
+      CREATE TABLE "projects" (
+        "id" SERIAL NOT NULL,
+        "name" character varying(100) NOT NULL,
+        "owner_id" integer NOT NULL,
+        "created_at" TIMESTAMP NOT NULL DEFAULT now(),
+        CONSTRAINT "PK_projects_id" PRIMARY KEY ("id")
+      )
+    `);
+    await queryRunner.query(`
+      CREATE TABLE "project_members" (
+        "id" SERIAL NOT NULL,
+        "project_id" integer NOT NULL,
+        "user_id" integer NOT NULL,
+        "role" character varying(50) NOT NULL,
+        CONSTRAINT "PK_project_members_id" PRIMARY KEY ("id")
+      )
+    `);
+    await queryRunner.query(`
+      CREATE TABLE "conversations" (
+        "id" SERIAL NOT NULL,
+        "project_id" integer NOT NULL,
+        "title" character varying(100) NOT NULL,
+        "metadata" json,
+        "created_at" TIMESTAMP NOT NULL DEFAULT now(),
+        CONSTRAINT "PK_conversations_id" PRIMARY KEY ("id")
+      )
+    `);
+    await queryRunner.query(`
+      CREATE TABLE "agents" (
+        "id" SERIAL NOT NULL,
+        "name" character varying(100) NOT NULL,
+        "type" character varying(20) NOT NULL,
+        "api_endpoint" character varying(200) NOT NULL,
+        "config_json" json NOT NULL,
+        "model_source" character varying(50) NOT NULL,
+        "training_config" json,
+        "version" character varying(20) NOT NULL,
+        "active" boolean NOT NULL DEFAULT true,
+        "created_at" TIMESTAMP NOT NULL DEFAULT now(),
+        CONSTRAINT "PK_agents_id" PRIMARY KEY ("id")
+      )
+    `);
+    await queryRunner.query(`
+      CREATE TABLE "messages" (
+        "id" SERIAL NOT NULL,
+        "conversation_id" integer NOT NULL,
+        "user_id" integer NOT NULL,
+        "agent_id" integer NOT NULL,
+        "user_message" text NOT NULL,
+        "agent_response" text NOT NULL,
+        "attachments" json,
+        "tokens_used" float NOT NULL,
+        "created_at" TIMESTAMP NOT NULL DEFAULT now(),
+        CONSTRAINT "PK_messages_id" PRIMARY KEY ("id")
+      )
+    `);
+    await queryRunner.query(`
+      CREATE TABLE "billing_log" (
+        "id" SERIAL NOT NULL,
+        "user_id" integer NOT NULL,
+        "project_id" integer NOT NULL,
+        "conversation_id" integer NOT NULL,
+        "agent_id" integer NOT NULL,
+        "cost" float NOT NULL,
+        "tokens" float NOT NULL,
+        "timestamp" TIMESTAMP NOT NULL DEFAULT now(),
+        CONSTRAINT "PK_billing_log_id" PRIMARY KEY ("id")
+      )
+    `);
+    await queryRunner.query(`ALTER TABLE "projects" ADD CONSTRAINT "FK_projects_owner_id" FOREIGN KEY ("owner_id") REFERENCES "users"("id") ON DELETE CASCADE`);
+    await queryRunner.query(`ALTER TABLE "project_members" ADD CONSTRAINT "FK_project_members_project_id" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE`);
+    await queryRunner.query(`ALTER TABLE "project_members" ADD CONSTRAINT "FK_project_members_user_id" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE`);
+    await queryRunner.query(`ALTER TABLE "conversations" ADD CONSTRAINT "FK_conversations_project_id" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE`);
+    await queryRunner.query(`ALTER TABLE "messages" ADD CONSTRAINT "FK_messages_conversation_id" FOREIGN KEY ("conversation_id") REFERENCES "conversations"("id") ON DELETE CASCADE`);
+    await queryRunner.query(`ALTER TABLE "messages" ADD CONSTRAINT "FK_messages_user_id" FOREIGN KEY ("user_id") REFERENCES "users"("id")`);
+    await queryRunner.query(`ALTER TABLE "messages" ADD CONSTRAINT "FK_messages_agent_id" FOREIGN KEY ("agent_id") REFERENCES "agents"("id")`);
+    await queryRunner.query(`ALTER TABLE "billing_log" ADD CONSTRAINT "FK_billing_log_user_id" FOREIGN KEY ("user_id") REFERENCES "users"("id")`);
+    await queryRunner.query(`ALTER TABLE "billing_log" ADD CONSTRAINT "FK_billing_log_project_id" FOREIGN KEY ("project_id") REFERENCES "projects"("id")`);
+    await queryRunner.query(`ALTER TABLE "billing_log" ADD CONSTRAINT "FK_billing_log_conversation_id" FOREIGN KEY ("conversation_id") REFERENCES "conversations"("id")`);
+    await queryRunner.query(`ALTER TABLE "billing_log" ADD CONSTRAINT "FK_billing_log_agent_id" FOREIGN KEY ("agent_id") REFERENCES "agents"("id")`);
+  }
+
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`ALTER TABLE "billing_log" DROP CONSTRAINT "FK_billing_log_agent_id"`);
+    await queryRunner.query(`ALTER TABLE "billing_log" DROP CONSTRAINT "FK_billing_log_conversation_id"`);
+    await queryRunner.query(`ALTER TABLE "billing_log" DROP CONSTRAINT "FK_billing_log_project_id"`);
+    await queryRunner.query(`ALTER TABLE "billing_log" DROP CONSTRAINT "FK_billing_log_user_id"`);
+    await queryRunner.query(`ALTER TABLE "messages" DROP CONSTRAINT "FK_messages_agent_id"`);
+    await queryRunner.query(`ALTER TABLE "messages" DROP CONSTRAINT "FK_messages_user_id"`);
+    await queryRunner.query(`ALTER TABLE "messages" DROP CONSTRAINT "FK_messages_conversation_id"`);
+    await queryRunner.query(`ALTER TABLE "conversations" DROP CONSTRAINT "FK_conversations_project_id"`);
+    await queryRunner.query(`ALTER TABLE "project_members" DROP CONSTRAINT "FK_project_members_user_id"`);
+    await queryRunner.query(`ALTER TABLE "project_members" DROP CONSTRAINT "FK_project_members_project_id"`);
+    await queryRunner.query(`ALTER TABLE "projects" DROP CONSTRAINT "FK_projects_owner_id"`);
+    await queryRunner.query(`DROP TABLE "billing_log"`);
+    await queryRunner.query(`DROP TABLE "messages"`);
+    await queryRunner.query(`DROP TABLE "agents"`);
+    await queryRunner.query(`DROP TABLE "conversations"`);
+    await queryRunner.query(`DROP TABLE "project_members"`);
+    await queryRunner.query(`DROP TABLE "projects"`);
+    await queryRunner.query(`DROP TABLE "users"`);
+  }
+}
