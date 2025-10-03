@@ -1,0 +1,3 @@
+- docker-compose.yml: Complete local development setup
+- .env.example: All environment variables with descriptions
+- seed-data.json: Sample data for testing
