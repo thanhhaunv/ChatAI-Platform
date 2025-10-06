@@ -36,6 +36,12 @@ Cảm ơn bạn đã góp ý! Từ giờ, tôi sẽ highlight các thay đổi t
   ```
   npm i -D ts-node @types/node @types/passport-jwt @types/bcryptjs jest supertest @nestjs/testing ts-jest
   ```
+- Thieu gi cai day:
+  ```
+  npm install @nestjs/typeorm@latest
+  npm install @nestjs/xxx@latest
+  ```
+  
 
 #### 3. Cấu Hình `.env`
 - Tạo file `/services/auth-service/.env` (file mới, không cần highlight):  
