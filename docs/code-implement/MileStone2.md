@@ -1,14 +1,15 @@
-Cảm ơn bạn đã yêu cầu hỗ trợ cho **Milestone 2**. Dựa trên tiến trình hiện tại (ngày 06/10/2025, 14:47 +07), tôi giả định bạn đã hoàn thành Milestone 1 (setup DB và infra basic với NestJS và PostgreSQL). Milestone 2 thường tập trung vào **Authentication Service** (Auth Service), bao gồm triển khai JWT (JSON Web Token) cho xác thực, guard để bảo vệ endpoint, và có thể tích hợp OAuth (e.g., Google, Facebook) nếu được yêu cầu. Tôi sẽ cung cấp hướng dẫn chi tiết với code full để bạn copy-run ngay, bao gồm các file cần thiết và bước thực thi.
+Cảm ơn bạn đã góp ý! Từ giờ, tôi sẽ highlight các thay đổi trong các file cũ bằng cách sử dụng **dấu ** (dấu sao) để bao quanh phần thay đổi, giúp bạn dễ dàng nhận diện và cập nhật. Dưới đây là hướng dẫn chi tiết cho **Milestone 2: Authentication Service**, với các thay đổi được highlight trong các file đã tồn tại từ Milestone 1 hoặc mới tạo.
+
+---
 
 ### Milestone 2: Authentication Service (Full Setup)
 
 **Mục Tiêu**:  
 - Tạo Auth Service trong `/services/auth-service`.
 - Triển khai JWT authentication với guard.
-- (Tùy chọn) Tích hợp OAuth (Google, Facebook) nếu bạn cần.
 - Kết nối với DB từ Milestone 1 để lưu user info.
 
-**Thời Gian Ước Tính**: 4 giờ (2 giờ cho JWT, 2 giờ cho CI/CD).
+**Thời Gian Ước Tính**: 4 giờ.
 
 ---
 
@@ -32,7 +33,7 @@ Cảm ơn bạn đã yêu cầu hỗ trợ cho **Milestone 2**. Dựa trên ti�
   ```
 
 #### 3. Cấu Hình `.env`
-- Tạo file `/services/auth-service/.env` với nội dung:  
+- Tạo file `/services/auth-service/.env` (file mới, không cần highlight):  
   ```
   DB_HOST=localhost
   DB_PORT=5432
@@ -45,7 +46,7 @@ Cảm ơn bạn đã yêu cầu hỗ trợ cho **Milestone 2**. Dựa trên ti�
 - Add to `.gitignore`: `echo ".env" >> .gitignore`.
 
 #### 4. Cập Nhật `package.json`
-- Thay toàn bộ `package.json` bằng:  
+- Thay toàn bộ `/services/auth-service/package.json` (file mới, không cần highlight, nhưng tôi sẽ highlight các script thay đổi so với mặc định NestJS):  
   ```json
   {
     "name": "auth-service",
@@ -67,9 +68,9 @@ Cảm ơn bạn đã yêu cầu hỗ trợ cho **Milestone 2**. Dựa trên ti�
       "test:cov": "jest --coverage",
       "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
       "test:e2e": "jest --config ./test/jest-e2e.json",
-      "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/data-source.ts",
-      "migration:generate": "npm run typeorm -- migration:generate src/migrations/ --name",
-      "migration:run": "npm run typeorm migration:run"
+      ***"typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js -d src/data-source.ts",***
+      ***"migration:generate": "npm run typeorm -- migration:generate src/migrations/ --name",***
+      ***"migration:run": "npm run typeorm migration:run"***
     },
     "dependencies": {
       "@nestjs/common": "^10.0.0",
@@ -127,10 +128,10 @@ Cảm ơn bạn đã yêu cầu hỗ trợ cho **Milestone 2**. Dựa trên ti�
     }
   }
   ```
-- Run: `npm i` để install.
+  - **Thay đổi nổi bật**: Thêm các script **typeorm**, **migration:generate**, **migration:run** để hỗ trợ migration và TypeORM CLI.
 
 #### 5. Cấu Hình `data-source.ts`
-- Tạo `/services/auth-service/src/data-source.ts` với nội dung:  
+- Tạo `/services/auth-service/src/data-source.ts` (file mới, không cần highlight):  
   ```typescript
   import { DataSource } from 'typeorm';
 
@@ -149,7 +150,7 @@ Cảm ơn bạn đã yêu cầu hỗ trợ cho **Milestone 2**. Dựa trên ti�
   ```
 
 #### 6. Tạo Entity `User`
-- Tạo `/services/auth-service/src/entities/user.entity.ts` với nội dung:  
+- Tạo `/services/auth-service/src/entities/user.entity.ts` (file mới, nhưng dựa trên Milestone 1, thêm field `password`):  
   ```typescript
   import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
 
@@ -164,8 +165,8 @@ Cảm ơn bạn đã yêu cầu hỗ trợ cho **Milestone 2**. Dựa trên ti�
     @Column({ unique: true, length: 100 })
     email: string;
 
-    @Column({ length: 100 })
-    password: string; // Thêm cho JWT auth
+    ***@Column({ length: 100 })***
+    ***password: string;***  // Thêm field password cho auth
 
     @Column({ length: 50 })
     role: string;
@@ -176,20 +177,20 @@ Cảm ơn bạn đã yêu cầu hỗ trợ cho **Milestone 2**. Dựa trên ti�
   ```
 
 #### 7. Cập Nhật `app.module.ts`
-- Thay `/services/auth-service/src/app.module.ts` bằng:  
+- Thay `/services/auth-service/src/app.module.ts` (file mặc định từ NestJS, thêm module và config):  
   ```typescript
   import { Module } from '@nestjs/common';
   import { AppController } from './app.controller';
   import { AppService } from './app.service';
-  import { AuthModule } from './auth/auth.module';
-  import { ConfigModule } from '@nestjs/config';
-  import { TypeOrmModule } from '@nestjs/typeorm';
-  import { User } from './entities/user.entity';
+  ***import { AuthModule } from './auth/auth.module';***
+  ***import { ConfigModule } from '@nestjs/config';***
+  ***import { TypeOrmModule } from '@nestjs/typeorm';***
+  ***import { User } from './entities/user.entity';***
 
   @Module({
     imports: [
-      ConfigModule.forRoot(),
-      TypeOrmModule.forRoot({
+      ***ConfigModule.forRoot(),***
+      ***TypeOrmModule.forRoot({
         type: 'postgres',
         host: process.env.DB_HOST || 'localhost',
         port: parseInt(process.env.DB_PORT || '5432'),
@@ -198,8 +199,8 @@ Cảm ơn bạn đã yêu cầu hỗ trợ cho **Milestone 2**. Dựa trên ti�
         database: process.env.DB_NAME || 'chatai',
         entities: [User],
         synchronize: false,
-      }),
-      AuthModule,
+      }),***
+      ***AuthModule,***
     ],
     controllers: [AppController],
     providers: [AppService],
@@ -208,7 +209,7 @@ Cảm ơn bạn đã yêu cầu hỗ trợ cho **Milestone 2**. Dựa trên ti�
   ```
 
 #### 8. Tạo Auth Module
-- Tạo `/services/auth-service/src/auth/auth.module.ts`:  
+- Tạo `/services/auth-service/src/auth/auth.module.ts` (file mới):  
   ```typescript
   import { Module } from '@nestjs/common';
   import { AuthService } from './auth.service';
@@ -235,7 +236,7 @@ Cảm ơn bạn đã yêu cầu hỗ trợ cho **Milestone 2**. Dựa trên ti�
   ```
 
 #### 9. Tạo Auth Service
-- Tạo `/services/auth-service/src/auth/auth.service.ts`:  
+- Tạo `/services/auth-service/src/auth/auth.service.ts` (file mới):  
   ```typescript
   import { Injectable } from '@nestjs/common';
   import { InjectRepository } from '@nestjs/typeorm';
@@ -268,7 +269,7 @@ Cảm ơn bạn đã yêu cầu hỗ trợ cho **Milestone 2**. Dựa trên ti�
   ```
 
 #### 10. Tạo Auth Controller
-- Tạo `/services/auth-service/src/auth/auth.controller.ts`:  
+- Tạo `/services/auth-service/src/auth/auth.controller.ts` (file mới):  
   ```typescript
   import { Controller, Post, Body, UseGuards } from '@nestjs/common';
   import { AuthService } from './auth.service';
@@ -301,7 +302,7 @@ Cảm ơn bạn đã yêu cầu hỗ trợ cho **Milestone 2**. Dựa trên ti�
   ```
 
 #### 11. Tạo JWT Strategy
-- Tạo `/services/auth-service/src/auth/jwt.strategy.ts`:  
+- Tạo `/services/auth-service/src/auth/jwt.strategy.ts` (file mới):  
   ```typescript
   import { ExtractJwt, Strategy } from 'passport-jwt';
   import { PassportStrategy } from '@nestjs/passport';
@@ -324,7 +325,7 @@ Cảm ơn bạn đã yêu cầu hỗ trợ cho **Milestone 2**. Dựa trên ti�
   ```
 
 #### 12. Tạo JWT Auth Guard
-- Tạo `/services/auth-service/src/auth/jwt-auth.guard.ts`:  
+- Tạo `/services/auth-service/src/auth/jwt-auth.guard.ts` (file mới):  
   ```typescript
   import { Injectable } from '@nestjs/common';
   import { AuthGuard } from '@nestjs/passport';
@@ -334,16 +335,16 @@ Cảm ơn bạn đã yêu cầu hỗ trợ cho **Milestone 2**. Dựa trên ti�
   ```
 
 #### 13. Cập Nhật `main.ts`
-- Thay `/services/auth-service/src/main.ts` bằng:  
+- Thay `/services/auth-service/src/main.ts` (file mặc định từ NestJS, thêm config port):  
   ```typescript
   import { NestFactory } from '@nestjs/core';
   import { AppModule } from './app.module';
-  import { ConfigService } from '@nestjs/config';
+  ***import { ConfigService } from '@nestjs/config';***
 
   async function bootstrap() {
     const app = await NestFactory.create(AppModule);
-    const configService = app.get(ConfigService);
-    await app.listen(configService.get<number>('PORT', 3001));
+    ***const configService = app.get(ConfigService);***
+    ***await app.listen(configService.get<number>('PORT', 3001));***
   }
   bootstrap();
   ```
@@ -353,7 +354,7 @@ Cảm ơn bạn đã yêu cầu hỗ trợ cho **Milestone 2**. Dựa trên ti�
   ```
   npm run migration:generate UserAuthSchema
   ```
-- Edit file `src/migrations/175948xxxx-UserAuthSchema.ts` (thay bằng):  
+- Edit file `src/migrations/175948xxxx-UserAuthSchema.ts` (file mới, nhưng dựa trên schema từ Milestone 1, thêm `password`):  
   ```typescript
   import { MigrationInterface, QueryRunner } from "typeorm";
 
@@ -366,7 +367,7 @@ Cảm ơn bạn đã yêu cầu hỗ trợ cho **Milestone 2**. Dựa trên ti�
           "id" SERIAL NOT NULL,
           "name" character varying(100) NOT NULL,
           "email" character varying(100) NOT NULL UNIQUE,
-          "password" character varying(100) NOT NULL,
+          ***"password" character varying(100) NOT NULL,***  // Thêm field password
           "role" character varying(50) NOT NULL,
           "created_at" TIMESTAMP NOT NULL DEFAULT now(),
           CONSTRAINT "PK_users_id" PRIMARY KEY ("id")
@@ -382,7 +383,7 @@ Cảm ơn bạn đã yêu cầu hỗ trợ cho **Milestone 2**. Dựa trên ti�
 - Chạy: `npm run migration:run`.
 
 #### 15. Test Auth Service
-- Tạo `/services/auth-service/src/auth/auth.service.spec.ts`:  
+- Tạo `/services/auth-service/src/auth/auth.service.spec.ts` (file mới):  
   ```typescript
   import { Test, TestingModule } from '@nestjs/testing';
   import { AuthService } from './auth.service';
@@ -425,7 +426,7 @@ Cảm ơn bạn đã yêu cầu hỗ trợ cho **Milestone 2**. Dựa trên ti�
 - Chạy: `npm test`.
 
 #### 16. CI/CD Setup
-- Tạo `.github/workflows/test-auth.yaml` trong root:  
+- Tạo `.github/workflows/test-auth.yaml` trong root (file mới):  
   ```yaml
   name: Auth Service CI
 
@@ -460,4 +461,4 @@ Cảm ơn bạn đã yêu cầu hỗ trợ cho **Milestone 2**. Dựa trên ti�
 - **Test**: Pass với coverage.
 - **CI/CD**: Action chạy thành công.
 
-Chạy từng bước, báo lỗi nếu có! Sẵn Milestone 3!
+Chạy từng bước, báo lỗi nếu có! Sẵn sàng cho Milestone 3!
