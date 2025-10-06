@@ -18,6 +18,11 @@ Cảm ơn bạn đã góp ý! Từ giờ, tôi sẽ highlight các thay đổi t
 #### 1. Khởi Tạo `/services/auth-service`
 - Chạy lệnh từ root (`ChatAI-Platform`):  
   ```
+  npm install -g @nestjs/cli
+  sudo chown -R $USER:$USER ~/.npm  
+  npx --force nest new services/auth-service --skip-install
+
+  or
   npx nest new services/auth-service --skip-install
   ```
 - CD vào: `cd services/auth-service`.
