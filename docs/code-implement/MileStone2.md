@@ -313,7 +313,7 @@ Cảm ơn bạn đã góp ý! Từ giờ, tôi sẽ highlight các thay đổi t
   ```
 
 #### 11. Tạo JWT Strategy
-- Tạo `/services/auth-service/src/auth/jwt.strategy.ts` (file mới):  
+- Tạo `/services/auth-service/src/auth/jwt.strategy.ts`:  
   ```typescript old (error at super)
   import { ExtractJwt, Strategy } from 'passport-jwt';
   import { PassportStrategy } from '@nestjs/passport';
@@ -334,28 +334,29 @@ Cảm ơn bạn đã góp ý! Từ giờ, tôi sẽ highlight các thay đổi t
     }
   }
   ```
+- Fix loi super
   ```resolve
-import { ExtractJwt, Strategy } from 'passport-jwt';
-import { PassportStrategy } from '@nestjs/passport';
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-
-@Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor() {
-    ***if (!process.env.JWT_SECRET) {
-      throw new UnauthorizedException('JWT_SECRET is not defined in environment variables');
-    }***
-    super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      ignoreExpiration: false,
-      ***secretOrKey: process.env.JWT_SECRET,***  // Đảm bảo kiểu là string
-    });
+  import { ExtractJwt, Strategy } from 'passport-jwt';
+  import { PassportStrategy } from '@nestjs/passport';
+  import { Injectable, UnauthorizedException } from '@nestjs/common';
+  
+  @Injectable()
+  export class JwtStrategy extends PassportStrategy(Strategy) {
+    constructor() {
+      ***if (!process.env.JWT_SECRET) {
+        throw new UnauthorizedException('JWT_SECRET is not defined in environment variables');
+      }***
+      super({
+        jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+        ignoreExpiration: false,
+        ***secretOrKey: process.env.JWT_SECRET,***  // Đảm bảo kiểu là string
+      });
+    }
+  
+    async validate(payload: any) {
+      return { userId: payload.sub, email: payload.email, role: payload.role };
+    }
   }
-
-  async validate(payload: any) {
-    return { userId: payload.sub, email: payload.email, role: payload.role };
-  }
-}
   ```
 
 #### 12. Tạo JWT Auth Guard
