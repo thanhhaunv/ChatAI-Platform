@@ -4,15 +4,33 @@ import { lastValueFrom } from 'rxjs';
 
 @Controller('projects')
 export class ProjectsController {
-  constructor(private httpService: HttpService) {}
+  constructor(private readonly httpService: HttpService) {}
 
   @Get()
-  async getProjects(@Req() req, @Res() res) {
-    const response = await lastValueFrom(
-      this.httpService.get('http://user-service:3002/projects', { headers: req.headers }),
-    );
-    res.status(response.status).json(response.data);
+  async getProjects(@Req() req: any, @Res() res: any) {
+    try {
+      const response = await lastValueFrom(
+        this.httpService.get(`${process.env.USER_SERVICE_URL}/projects`, {
+          headers: req.headers,
+        }),
+      );
+      res.status(response.status).json(response.data);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to proxy to user-service' });
+    }
   }
 
-  // Add create, update, etc.
+  @Post()
+  async createProject(@Body() body: any, @Req() req: any, @Res() res: any) {
+    try {
+      const response = await lastValueFrom(
+        this.httpService.post(`${process.env.USER_SERVICE_URL}/projects`, body, {
+          headers: req.headers,
+        }),
+      );
+      res.status(response.status).json(response.data);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to proxy to user-service' });
+    }
+  }
 }
