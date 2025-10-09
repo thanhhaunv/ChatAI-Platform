@@ -1,6 +1,7 @@
 import { Module, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { HttpService } from '@nestjs/axios';
 import { AppController } from './app.controller';
 import { AuthController } from './controllers/auth.controller';
 import { ProjectsController } from './controllers/projects.controller';
@@ -16,6 +17,7 @@ import configuration from './config/configuration';
   imports: [ConfigModule.forRoot({ load: [configuration] })],
   controllers: [AppController, AuthController, ProjectsController, ChatController],
   providers: [
+    HttpService,
     {
       provide: APP_FILTER,
       useClass: HttpExceptionFilter,
