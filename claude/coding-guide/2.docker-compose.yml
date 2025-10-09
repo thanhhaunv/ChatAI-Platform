@@ -1,0 +1,156 @@
+version: '3.8'
+
+# docker-compose.yml - ChatAI Platform Local Development Environment
+# Usage: docker-compose up -d
+# Includes: PostgreSQL, Redis, MinIO (S3), pgAdmin (optional UI)
+
+services:
+  # ===== DATABASES =====
+  
+  postgres:
+    image: postgres:15-alpine
+    container_name: chatai-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASS:-secret}
+      POSTGRES_DB: ${DB_NAME:-chatai}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      # Optional: auto-run init scripts
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chatai-network
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=200"
+
+  redis:
+    image: redis:7-alpine
+    container_name: chatai-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chatai-network
+    command:
+      - "redis-server"
+      - "--appendonly"
+      - "yes"
+
+  # ===== FILE STORAGE =====
+  
+  minio:
+    image: minio/minio:latest
+    container_name: chatai-minio
+    ports:
+      - "9000:9000"      # API
+      - "9001:9001"      # Console UI
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASS:-minioadmin}
+    volumes:
+      - minio-data:/minio-storage
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chatai-network
+    command: >
+      server /minio-storage --console-address ":9001"
+    # Create buckets on startup (optional)
+    entrypoint: >
+      sh -c "minio server /minio-storage --console-address ':9001' &
+             sleep 10 &&
+             /usr/bin/mc config host add myminio http://127.0.0.1:9000 minioadmin minioadmin &&
+             /usr/bin/mc mb myminio/chatai-files || true &&
+             wait"
+
+  # ===== DATABASE UI TOOLS =====
+  
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: chatai-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASS:-admin}
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - chatai-network
+    profiles:
+      - debug  # Run with: docker-compose --profile debug up
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: chatai-redis-commander
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - chatai-network
+    profiles:
+      - debug
+
+  # ===== MESSAGE QUEUE (Optional, for async tasks) =====
+  
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: chatai-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest}
+    ports:
+      - "5672:5672"      # AMQP
+      - "15672:15672"    # Management UI
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chatai-network
+    profiles:
+      - optional  # Run with: docker-compose --profile optional up
+
+# ===== NETWORKS =====
+
+networks:
+  chatai-network:
+    driver: bridge
+
+# ===== VOLUMES =====
+
+volumes:
+  db-data:
+    driver: local
+  redis-data:
+    driver: local
+  minio-data:
+    driver: local
+  rabbitmq-data:
+    driver: local
