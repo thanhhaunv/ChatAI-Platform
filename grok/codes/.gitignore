@@ -1,0 +1,57 @@
+# Node.js
+node_modules
+npm-debug.log
+yarn-error.log
+.pnpm-store
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Docker
+*.dockerignore
+Dockerfile.*
+
+# Env
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Logs
+logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+.idea/
+*.sublime-*
+*.swp
+*.swo
+
+# Tests
+coverage/
+.nyc_output
+
+# Turbo
+.turbo
+
+# Misc
+tmp/
+temp/
