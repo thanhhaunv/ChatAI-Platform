@@ -1,4 +1,3 @@
-```
 ChatAI-Platform/
 │
 ├── 📂 .github/
@@ -6,6 +5,11 @@ ChatAI-Platform/
 │       ├── test-backend.yaml      # CI pipeline: build, test, lint
 │       ├── test-frontend.yaml     # Frontend tests + build
 │       └── deploy.yaml            # Auto deploy on merge
+│
+├── 📂 .husky/
+│   ├── pre-commit                 # Run lint-staged + tests
+│   ├── commit-msg                 # Validate commit message format
+│   └── pre-push                   # Run tests before push
 │
 ├── 📂 frontend/
 │   ├── 📂 web/                    # Next.js 14 web app
@@ -56,7 +60,7 @@ ChatAI-Platform/
 │   │   ├── .dockerignore
 │   │   └── README.md              # Web app runbook
 │   │
-│   └── 📂 mobile/                 # React Native (Expo) - Note: Share components via symlinks or packages/shared
+│   └── 📂 mobile/                 # React Native (Expo)
 │       ├── app.json               # Expo config
 │       ├── App.tsx                # Entry point
 │       ├── src/
@@ -64,7 +68,7 @@ ChatAI-Platform/
 │       │   │   ├── LoginScreen.tsx
 │       │   │   ├── ProjectsScreen.tsx
 │       │   │   └── ChatScreen.tsx
-│       │   ├── components/        # Reusable (shared with web if possible)
+│       │   ├── components/        # Reusable
 │       │   ├── navigation/        # React Navigation
 │       │   ├── api/               # API client
 │       │   └── utils/
@@ -124,7 +128,7 @@ ChatAI-Platform/
 │   │   │   │   ├── login.dto.ts
 │   │   │   │   └── oauth.dto.ts
 │   │   │   ├── entities/
-│   │   │   │   └── user.entity.ts # TypeORM entity (shared via packages/shared)
+│   │   │   │   └── user.entity.ts # TypeORM entity
 │   │   │   ├── guards/            # Auth guards
 │   │   │   │   ├── jwt-auth.guard.ts
 │   │   │   │   └── roles.guard.ts
@@ -145,7 +149,7 @@ ChatAI-Platform/
 │   │   │   ├── database/          # TypeORM config
 │   │   │   │   ├── database.module.ts
 │   │   │   │   └── database.config.ts
-│   │   │   ├── entities/          # TypeORM entities (from ERD, shared via packages/shared)
+│   │   │   ├── entities/          # TypeORM entities
 │   │   │   │   ├── user.entity.ts
 │   │   │   │   ├── project.entity.ts
 │   │   │   │   ├── project-member.entity.ts
@@ -154,7 +158,7 @@ ChatAI-Platform/
 │   │   │   │   └── agent.entity.ts
 │   │   │   ├── migrations/        # TypeORM migrations
 │   │   │   │   ├── 1700000000000-InitSchema.ts
-│   │   │   │   └── ... (one per DB change)
+│   │   │   │   └── ...
 │   │   │   ├── modules/
 │   │   │   │   ├── users/
 │   │   │   │   │   ├── users.controller.ts
@@ -175,7 +179,7 @@ ChatAI-Platform/
 │   │   │   └── config/
 │   │   │       └── configuration.ts
 │   │   ├── test/
-│   │   ├── ormconfig.json         # TypeORM config (for migrations)
+│   │   ├── ormconfig.json         # TypeORM config
 │   │   ├── Dockerfile
 │   │   ├── .env.example
 │   │   ├── package.json
@@ -187,19 +191,19 @@ ChatAI-Platform/
 │   │   │   ├── chat.module.ts
 │   │   │   ├── chat.controller.ts # /messages endpoints
 │   │   │   ├── chat.service.ts    # Core logic
-│   │   │   ├── gateway/           # WebSocket gateway (Socket.io)
+│   │   │   ├── gateway/           # WebSocket gateway
 │   │   │   │   └── chat.gateway.ts
 │   │   │   ├── integrations/      # External API calls
 │   │   │   │   ├── openai.service.ts
 │   │   │   │   ├── grok.service.ts
 │   │   │   │   └── gemini.service.ts
-│   │   │   ├── utils/             # Utilities
+│   │   │   ├── utils/
 │   │   │   │   ├── context.util.ts      # Thread context retrieval
-│   │   │   │   ├── file-extractor.util.ts # Extract text from files
-│   │   │   │   └── whisper.util.ts      # STT wrapper (call Python service)
+│   │   │   │   ├── file-extractor.util.ts
+│   │   │   │   └── whisper.util.ts
 │   │   │   ├── dto/
 │   │   │   │   └── send-message.dto.ts
-│   │   │   └── entities/          # Message entity (reference)
+│   │   │   └── entities/
 │   │   ├── test/
 │   │   ├── Dockerfile
 │   │   ├── .env.example
@@ -212,9 +216,9 @@ ChatAI-Platform/
 │   │   │   ├── agent.module.ts
 │   │   │   ├── agent.controller.ts # /agents endpoints + deploy
 │   │   │   ├── agent.service.ts
-│   │   │   ├── docker/            # Docker deployment
-│   │   │   │   └── docker.service.ts # Exec docker run/stop
-│   │   │   ├── kubernetes/        # K8s deployment (optional)
+│   │   │   ├── docker/
+│   │   │   │   └── docker.service.ts
+│   │   │   ├── kubernetes/
 │   │   │   │   └── k8s.service.ts
 │   │   │   ├── entities/
 │   │   │   ├── dto/
@@ -225,12 +229,34 @@ ChatAI-Platform/
 │   │   ├── package.json
 │   │   └── README.md
 │   │
+│   ├── 📂 notification-service/   # NestJS Notification Service (NEW)
+│   │   ├── src/
+│   │   │   ├── main.ts
+│   │   │   ├── notification.module.ts
+│   │   │   ├── notification.controller.ts
+│   │   │   ├── notification.service.ts
+│   │   │   ├── gateway/           # WebSocket for realtime notifications
+│   │   │   │   └── notification.gateway.ts
+│   │   │   ├── providers/         # Multiple notification channels
+│   │   │   │   ├── email.provider.ts
+│   │   │   │   ├── push.provider.ts
+│   │   │   │   └── websocket.provider.ts
+│   │   │   ├── dto/
+│   │   │   │   └── send-notification.dto.ts
+│   │   │   └── entities/
+│   │   │       └── notification.entity.ts
+│   │   ├── test/
+│   │   ├── Dockerfile
+│   │   ├── .env.example
+│   │   ├── package.json
+│   │   └── README.md
+│   │
 │   ├── 📂 billing/                # NestJS Billing Service
 │   │   ├── src/
 │   │   │   ├── main.ts
 │   │   │   ├── billing.module.ts
-│   │   │   ├── billing.controller.ts # /billing/report
-│   │   │   ├── billing.service.ts    # Log usage, export CSV
+│   │   │   ├── billing.controller.ts
+│   │   │   ├── billing.service.ts
 │   │   │   ├── entities/
 │   │   │   │   └── billing-log.entity.ts
 │   │   │   ├── dto/
@@ -243,35 +269,34 @@ ChatAI-Platform/
 │   │   └── README.md
 │   │
 │   └── 📂 ml-training/            # Python FastAPI ML Training Service
-│       ├── main.py                # FastAPI app
+│       ├── main.py
 │       ├── app/
-│       │   ├── routers/           # Split endpoints for modularity
-│       │   │   ├── train.py       # /train endpoint
-│       │   │   └── predict.py     # /predict endpoint
-│       │   ├── models/            # Model classes
-│       │   │   └── trainer.py     # Training logic (Hugging Face)
+│       │   ├── routers/
+│       │   │   ├── train.py
+│       │   │   └── predict.py
+│       │   ├── models/
+│       │   │   └── trainer.py
 │       │   ├── utils/
-│       │   │   ├── loaders.py     # Data loaders
-│       │   │   ├── evaluator.py   # Evaluation metrics
-│       │   │   └── docker_builder.py # Build Docker image after training
+│       │   │   ├── loaders.py
+│       │   │   ├── evaluator.py
+│       │   │   └── docker_builder.py
 │       │   └── config/
-│       │       └── config.py      # Model configs
-│       │
+│       │       └── config.py
 │       ├── tests/
 │       ├── Dockerfile
 │       ├── .env.example
-│       ├── requirements.txt       # Python dependencies
+│       ├── requirements.txt
 │       ├── README.md
 │       └── pytest.ini
 │
-├── 📂 packages/                   # Shared libraries for monorepo (new: common DTOs/entities/utils)
+├── 📂 packages/                   # Shared libraries
 │   └── 📂 shared/
 │       ├── src/
-│       │   ├── entities/          # Shared TypeORM entities (e.g., user.entity.ts)
-│       │   ├── dto/               # Shared DTOs (e.g., base.dto.ts)
-│       │   └── utils/             # Shared utils (e.g., error.utils.ts)
+│       │   ├── entities/
+│       │   ├── dto/
+│       │   └── utils/
 │       ├── tsconfig.json
-│       ├── package.json           # Publishable as internal package
+│       ├── package.json
 │       └── README.md
 │
 ├── 📂 infrastructure/             # Infrastructure as Code
@@ -283,6 +308,7 @@ ChatAI-Platform/
 │   │   │   ├── user-service-deployment.yaml
 │   │   │   ├── chat-orch-deployment.yaml
 │   │   │   ├── agent-mgr-deployment.yaml
+│   │   │   ├── notification-service-deployment.yaml
 │   │   │   ├── billing-deployment.yaml
 │   │   │   ├── ml-training-deployment.yaml
 │   │   │   ├── postgres-statefulset.yaml
@@ -290,34 +316,34 @@ ChatAI-Platform/
 │   │   ├── services/
 │   │   │   ├── api-gateway-service.yaml
 │   │   │   ├── postgres-service.yaml
-│   │   │   └── ... (per service)
+│   │   │   └── ...
 │   │   ├── configmaps/
 │   │   │   └── app-config.yaml
 │   │   ├── secrets/
-│   │   │   └── app-secrets.yaml (use Vault in prod)
-│   │   ├── ingress.yaml           # Load balancer / ingress
-│   │   ├── rbac.yaml              # Roles & permissions
-│   │   ├── pvc.yaml               # Persistent volumes
-│   │   └── 📂 helm/               # Optional Helm charts for complex deploys
+│   │   │   └── app-secrets.yaml
+│   │   ├── ingress.yaml
+│   │   ├── rbac.yaml
+│   │   ├── pvc.yaml
+│   │   └── 📂 helm/
 │   │       ├── Chart.yaml
 │   │       └── values.yaml
 │   │
-│   ├── 📂 terraform/              # Infrastructure provisioning (AWS/GCP)
-│   │   ├── main.tf                # K8s cluster, RDS, S3
+│   ├── 📂 terraform/
+│   │   ├── main.tf
 │   │   ├── variables.tf
 │   │   ├── outputs.tf
 │   │   ├── vpc.tf
-│   │   ├── backend.tf             # Terraform state
-│   │   └── 📂 modules/            # Provider-specific modules (new: e.g., for AWS/GCP)
-│   │       ├── aws/               # AWS-specific (e.g., eks.tf)
+│   │   ├── backend.tf
+│   │   └── 📂 modules/
+│   │       ├── aws/
 │   │       │   └── main.tf
-│   │       └── gcp/               # GCP-specific (e.g., gke.tf)
+│   │       └── gcp/
 │   │           └── main.tf
 │   │
 │   ├── 📂 docker/
-│   │   ├── Dockerfile.backend     # Multi-stage build for services
-│   │   ├── Dockerfile.frontend    # Build & serve Next.js
-│   │   └── docker-compose.yml     # Local dev environment
+│   │   ├── Dockerfile.backend
+│   │   ├── Dockerfile.frontend
+│   │   └── docker-compose.yml
 │   │
 │   └── 📂 ci-cd/
 │       ├── github-actions/
@@ -330,10 +356,10 @@ ChatAI-Platform/
 │           ├── test.sh
 │           └── deploy.sh
 │
-├── 📂 docs/                       # Documentation (from GitHub)
+├── 📂 docs/
 │   ├── BRD.md
 │   ├── SRS.md
-│   ├── API-Spec.yaml              # OpenAPI spec
+│   ├── API-Spec.yaml
 │   ├── Diagrams.md
 │   ├── ERD.md
 │   ├── Tech-Stack.md
@@ -345,7 +371,7 @@ ChatAI-Platform/
 │   ├── Deliverables.md
 │   ├── UI-Wireframes.md
 │   │
-│   ├── 📂 adr/                   # Architecture Decision Records
+│   ├── 📂 adr/
 │   │   ├── 0001-use-nestjs.md
 │   │   ├── 0002-threading-strategy.md
 │   │   └── 0003-k8s-deployment.md
@@ -353,9 +379,7 @@ ChatAI-Platform/
 │   ├── 📂 guides/
 │   │   ├── Quick-Start.md
 │   │   ├── Development-Setup.md
-│   │   ├── Deployment-Guide.md
-│   │   ├── Security-Compliance.md (NEW)
-│   │   └── Monitoring-Alerting.md (NEW)
+│   │   └── Deployment-Guide.md
 │   │
 │   └── 📂 api/
 │       ├── auth.openapi.yaml
@@ -364,8 +388,8 @@ ChatAI-Platform/
 │       ├── agents.openapi.yaml
 │       └── billing.openapi.yaml
 │
-├── 📂 tests/                      # Shared tests
-│   ├── 📂 e2e/                    # End-to-End (Cypress + Detox)
+├── 📂 tests/
+│   ├── 📂 e2e/
 │   │   ├── cypress.config.js
 │   │   ├── cypress/
 │   │   │   └── e2e/
@@ -377,7 +401,7 @@ ChatAI-Platform/
 │   │           ├── auth.e2e.js
 │   │           └── chat.e2e.js
 │   │
-│   ├── 📂 integration/            # Postman collections + API tests
+│   ├── 📂 integration/
 │   │   ├── auth-signup.postman_collection.json
 │   │   ├── chat-flow.postman_collection.json
 │   │   ├── billing-report.postman_collection.json
@@ -386,41 +410,40 @@ ChatAI-Platform/
 │   │       ├── projects-seed.json
 │   │       └── messages-seed.json
 │   │
-│   ├── 📂 load/                   # Load tests (Artillery)
-│   │   ├── chat-load.yaml         # Simulate 10k users
+│   ├── 📂 load/
+│   │   ├── chat-load.yaml
 │   │   ├── auth-load.yaml
 │   │   └── artillery.config.yaml
 │   │
-│   ├── 📂 security/               # Security tests (OWASP ZAP, Snyk)
+│   ├── 📂 security/
 │   │   ├── owasp-config.yaml
 │   │   └── vulnerability-scan.sh
 │   │
 │   └── README.md
 │
-├── 📂 scripts/                    # Utility scripts
-│   ├── seed-db.js                 # Populate test data
-│   ├── migrate.sh                 # Run migrations
-│   ├── build-all.sh               # Build all services
-│   ├── deploy-local.sh            # Docker Compose up
-│   ├── deploy-staging.sh          # Deploy to staging K8s
-│   └── health-check.sh            # Cluster health
+├── 📂 scripts/
+│   ├── seed-db.js
+│   ├── migrate.sh
+│   ├── build-all.sh
+│   ├── deploy-local.sh
+│   ├── deploy-staging.sh
+│   └── health-check.sh
 │
-├── 📂 .vscode/                    # VSCode settings
-│   ├── settings.json              # Formatting, linting
-│   ├── launch.json                # Debug configurations
-│   └── extensions.json            # Recommended extensions
+├── 📂 .vscode/
+│   ├── settings.json
+│   ├── launch.json
+│   └── extensions.json
 │
-├── .gitignore                     # Git ignore
-├── .editorconfig                  # Editor config (spaces, line endings)
-├── docker-compose.yml             # Local dev (root level for convenience)
-├── .env.example                   # Global env template
-├── .env.production                # Production env template
+├── .gitignore
+├── .editorconfig
+├── docker-compose.yml
+├── .env.example
+├── .env.production
 │
-├── package.json                   # Monorepo root (optional, for shared scripts)
-├── pnpm-workspace.yaml            # Or yarn workspaces
-├── tsconfig.base.json             # Base TypeScript config for monorepo
-├── turbo.json                     # Turbo build cache (optional, for monorepo)
-├── README.md                      # Main project README
-├── CONTRIBUTING.md                # Contribution guide
-└── LICENSE                        # MIT or appropriate license
-```
+├── package.json
+├── pnpm-workspace.yaml
+├── tsconfig.base.json
+├── turbo.json
+├── README.md
+├── CONTRIBUTING.md
+└── LICENSE
