@@ -1,3 +1,1040 @@
+# M2 - AUTH SERVICE
+
+**Duration:** Week 2 (5 days)  
+**Goal:** Build authentication service with OAuth support  
+**Team:** Backend Dev 1  
+**Jira:** CAP-7  
+
+---
+
+## 📋 TABLE OF CONTENTS
+
+1. [Overview](#overview)
+2. [Prerequisites](#prerequisites)
+3. [Day 1-2: Email/Phone Authentication](#day-1-2-emailphone-authentication)
+4. [Day 3: OAuth Integration](#day-3-oauth-integration)
+5. [Day 4: JWT & Guards](#day-4-jwt--guards)
+6. [Day 5: Testing & Documentation](#day-5-testing--documentation)
+7. [Deliverables](#deliverables)
+
+---
+
+## Overview
+
+**What we're building:**
+- Email/phone signup & login
+- Password hashing with bcrypt
+- JWT token generation & refresh
+- Google OAuth integration
+- Facebook OAuth integration
+- TikTok OAuth integration
+- Auth guards (JWT, Roles)
+- Protected route decorators
+- Unit tests (>80% coverage)
+- E2E tests
+
+---
+
+## Prerequisites
+
+✅ M1 completed (database ready)  
+✅ User entity exists in shared package  
+✅ PostgreSQL running with users table  
+
+Verify:
+```bash
+# Check M1 completion
+curl http://localhost:4001/health
+
+# Check users table exists
+docker exec -it chatai-postgres psql -U postgres -d chatai_platform -c "\d users"
+```
+
+---
+
+## Day 1-2: Email/Phone Authentication
+
+### **Step 1: Create Auth Service Project (30 min)**
+
+#### 1.1 Create Directory
+
+```bash
+cd services
+mkdir -p auth-service
+cd auth-service
+pnpm init
+```
+
+#### 1.2 Create `package.json`
+
+```json
+{
+  "name": "@chatai/auth-service",
+  "version": "1.0.0",
+  "description": "Authentication service with OAuth support",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "nest build",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug --watch",
+    "start:prod": "node dist/main",
+    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "test:e2e": "jest --config ./test/jest-e2e.json"
+  },
+  "dependencies": {
+    "@chatai/shared": "workspace:*",
+    "@nestjs/common": "^10.2.10",
+    "@nestjs/config": "^3.1.1",
+    "@nestjs/core": "^10.2.10",
+    "@nestjs/jwt": "^10.2.0",
+    "@nestjs/passport": "^10.0.3",
+    "@nestjs/platform-express": "^10.2.10",
+    "@nestjs/typeorm": "^10.0.1",
+    "bcrypt": "^5.1.1",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.0",
+    "express-session": "^1.17.3",
+    "passport": "^0.7.0",
+    "passport-facebook": "^3.0.0",
+    "passport-google-oauth20": "^2.0.0",
+    "passport-jwt": "^4.0.1",
+    "passport-local": "^1.0.0",
+    "passport-oauth2": "^1.8.0",
+    "pg": "^8.11.3",
+    "reflect-metadata": "^0.1.13",
+    "rxjs": "^7.8.1",
+    "typeorm": "^0.3.17"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^10.2.1",
+    "@nestjs/schematics": "^10.0.3",
+    "@nestjs/testing": "^10.2.10",
+    "@types/bcrypt": "^5.0.2",
+    "@types/express": "^4.17.21",
+    "@types/express-session": "^1.17.10",
+    "@types/jest": "^29.5.11",
+    "@types/node": "^20.10.4",
+    "@types/passport-facebook": "^3.0.3",
+    "@types/passport-google-oauth20": "^2.0.14",
+    "@types/passport-jwt": "^3.0.13",
+    "@types/passport-local": "^1.0.38",
+    "@types/passport-oauth2": "^1.4.15",
+    "@types/supertest": "^6.0.2",
+    "@typescript-eslint/eslint-plugin": "^6.13.2",
+    "@typescript-eslint/parser": "^6.13.2",
+    "eslint": "^8.55.0",
+    "jest": "^29.7.0",
+    "source-map-support": "^0.5.21",
+    "supertest": "^6.3.3",
+    "ts-jest": "^29.1.1",
+    "ts-loader": "^9.5.1",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.3.3"
+  }
+}
+```
+
+#### 1.3 Create `nest-cli.json`
+
+```json
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "src",
+  "compilerOptions": {
+    "deleteOutDir": true
+  }
+}
+```
+
+#### 1.4 Create `tsconfig.json`
+
+```json
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2021",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strictNullChecks": false,
+    "noImplicitAny": false,
+    "strictBindCallApply": false,
+    "forceConsistentCasingInFileNames": false,
+    "noFallthroughCasesInSwitch": false,
+    "paths": {
+      "@chatai/shared": ["../../packages/shared/src"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "test"]
+}
+```
+
+#### 1.5 Install Dependencies
+
+```bash
+pnpm install
+```
+
+---
+
+### **Step 2: Create DTOs (30 min)**
+
+#### 2.1 Create Signup DTO
+
+Create `src/auth/dto/signup.dto.ts`:
+
+```typescript
+import {
+  IsEmail,
+  IsString,
+  MinLength,
+  MaxLength,
+  IsOptional,
+  IsEnum,
+  Matches,
+} from 'class-validator';
+import { AuthProvider } from '@chatai/shared';
+
+export class SignupDto {
+  @IsString()
+  @MinLength(2, { message: 'Name must be at least 2 characters' })
+  @MaxLength(255, { message: 'Name must not exceed 255 characters' })
+  name: string;
+
+  @IsEmail({}, { message: 'Invalid email format' })
+  email: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\+?[1-9]\d{1,14}$/, {
+    message: 'Phone must be in valid international format',
+  })
+  phone?: string;
+
+  @IsString()
+  @MinLength(8, { message: 'Password must be at least 8 characters' })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, {
+    message:
+      'Password must contain uppercase, lowercase, number and special character',
+  })
+  password: string;
+
+  @IsOptional()
+  @IsEnum(AuthProvider)
+  auth_provider?: AuthProvider;
+}
+```
+
+#### 2.2 Create Login DTO
+
+Create `src/auth/dto/login.dto.ts`:
+
+```typescript
+import { IsEmail, IsString, IsOptional, ValidateIf } from 'class-validator';
+
+export class LoginDto {
+  @ValidateIf((o) => !o.phone)
+  @IsEmail({}, { message: 'Invalid email format' })
+  email?: string;
+
+  @ValidateIf((o) => !o.email)
+  @IsString()
+  phone?: string;
+
+  @IsString()
+  password: string;
+}
+```
+
+#### 2.3 Create Refresh Token DTO
+
+Create `src/auth/dto/refresh-token.dto.ts`:
+
+```typescript
+import { IsString } from 'class-validator';
+
+export class RefreshTokenDto {
+  @IsString()
+  refresh_token: string;
+}
+```
+
+#### 2.4 Create Auth Response DTO
+
+Create `src/auth/dto/auth-response.dto.ts`:
+
+```typescript
+export class AuthResponseDto {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    phone?: string;
+    role: string;
+    avatar_url?: string;
+    created_at: Date;
+  };
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+}
+```
+
+---
+
+### **Step 3: Create Auth Service (3 hours)**
+
+#### 3.1 Create Auth Service
+
+Create `src/auth/auth.service.ts`:
+
+```typescript
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import * as bcrypt from 'bcrypt';
+import { User, UserRole, AuthProvider } from '@chatai/shared';
+import { SignupDto } from './dto/signup.dto';
+import { LoginDto } from './dto/login.dto';
+import { AuthResponseDto } from './dto/auth-response.dto';
+
+@Injectable()
+export class AuthService {
+  constructor(
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
+    private jwtService: JwtService,
+    private configService: ConfigService,
+  ) {}
+
+  /**
+   * Register new user with email/phone and password
+   */
+  async signup(signupDto: SignupDto): Promise<AuthResponseDto> {
+    // Check if user already exists
+    const existingUser = await this.userRepository.findOne({
+      where: [
+        { email: signupDto.email },
+        ...(signupDto.phone ? [{ phone: signupDto.phone }] : []),
+      ],
+    });
+
+    if (existingUser) {
+      if (existingUser.email === signupDto.email) {
+        throw new ConflictException('Email already registered');
+      }
+      if (existingUser.phone === signupDto.phone) {
+        throw new ConflictException('Phone number already registered');
+      }
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(signupDto.password, 10);
+
+    // Create user
+    const user = this.userRepository.create({
+      name: signupDto.name,
+      email: signupDto.email,
+      phone: signupDto.phone,
+      password: hashedPassword,
+      auth_provider: signupDto.auth_provider || AuthProvider.EMAIL,
+      role: UserRole.USER,
+      is_active: true,
+    });
+
+    await this.userRepository.save(user);
+
+    // Generate tokens
+    const tokens = await this.generateTokens(user);
+
+    return {
+      user: this.sanitizeUser(user),
+      ...tokens,
+    };
+  }
+
+  /**
+   * Login with email/phone and password
+   */
+  async login(loginDto: LoginDto): Promise<AuthResponseDto> {
+    // Validate input
+    if (!loginDto.email && !loginDto.phone) {
+      throw new BadRequestException('Email or phone is required');
+    }
+
+    // Find user
+    const user = await this.userRepository.findOne({
+      where: loginDto.email
+        ? { email: loginDto.email }
+        : { phone: loginDto.phone },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // Check if user used OAuth (no password)
+    if (!user.password && user.auth_provider !== AuthProvider.EMAIL) {
+      throw new UnauthorizedException(
+        `Please login with ${user.auth_provider}`,
+      );
+    }
+
+    // Verify password
+    const isPasswordValid = await bcrypt.compare(
+      loginDto.password,
+      user.password,
+    );
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // Check if user is active
+    if (!user.is_active) {
+      throw new UnauthorizedException('Account is disabled');
+    }
+
+    // Generate tokens
+    const tokens = await this.generateTokens(user);
+
+    return {
+      user: this.sanitizeUser(user),
+      ...tokens,
+    };
+  }
+
+  /**
+   * Refresh access token using refresh token
+   */
+  async refreshToken(refreshToken: string): Promise<{
+    access_token: string;
+    refresh_token: string;
+    token_type: string;
+    expires_in: number;
+  }> {
+    try {
+      // Verify refresh token
+      const payload = this.jwtService.verify(refreshToken, {
+        secret: this.configService.get('JWT_REFRESH_SECRET'),
+      });
+
+      // Get user
+      const user = await this.userRepository.findOne({
+        where: { id: payload.sub },
+      });
+
+      if (!user || !user.is_active) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      // Generate new tokens
+      return await this.generateTokens(user);
+    } catch (error) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+  }
+
+  /**
+   * Validate user by ID (used by JWT strategy)
+   */
+  async validateUser(userId: string): Promise<User> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!user || !user.is_active) {
+      throw new UnauthorizedException('User not found or inactive');
+    }
+
+    return user;
+  }
+
+  /**
+   * Find or create user from OAuth profile
+   */
+  async findOrCreateOAuthUser(
+    provider: AuthProvider,
+    profile: {
+      id: string;
+      email: string;
+      name: string;
+      avatar?: string;
+    },
+  ): Promise<User> {
+    // Try to find existing user
+    let user = await this.userRepository.findOne({
+      where: [
+        { oauth_id: profile.id, auth_provider: provider },
+        { email: profile.email },
+      ],
+    });
+
+    if (!user) {
+      // Create new user from OAuth
+      user = this.userRepository.create({
+        name: profile.name,
+        email: profile.email,
+        oauth_id: profile.id,
+        auth_provider: provider,
+        avatar_url: profile.avatar,
+        role: UserRole.USER,
+        is_active: true,
+        password: null, // No password for OAuth users
+      });
+      await this.userRepository.save(user);
+    } else if (!user.oauth_id) {
+      // Link existing email account to OAuth
+      user.oauth_id = profile.id;
+      user.auth_provider = provider;
+      if (profile.avatar) {
+        user.avatar_url = profile.avatar;
+      }
+      await this.userRepository.save(user);
+    }
+
+    return user;
+  }
+
+  /**
+   * Generate JWT access and refresh tokens
+   */
+  async generateTokens(user: User): Promise<{
+    access_token: string;
+    refresh_token: string;
+    token_type: string;
+    expires_in: number;
+  }> {
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    };
+
+    const [accessToken, refreshToken] = await Promise.all([
+      this.jwtService.signAsync(payload, {
+        secret: this.configService.get('JWT_SECRET'),
+        expiresIn: this.configService.get('JWT_EXPIRES_IN', '7d'),
+      }),
+      this.jwtService.signAsync(payload, {
+        secret: this.configService.get('JWT_REFRESH_SECRET'),
+        expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '30d'),
+      }),
+    ]);
+
+    return {
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      token_type: 'Bearer',
+      expires_in: 7 * 24 * 60 * 60, // 7 days in seconds
+    };
+  }
+
+  /**
+   * Remove sensitive data from user object
+   */
+  private sanitizeUser(user: User): AuthResponseDto['user'] {
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      avatar_url: user.avatar_url,
+      created_at: user.created_at,
+    };
+  }
+}
+```
+
+---
+
+### **Step 4: Create Auth Controller (1 hour)**
+
+Create `src/auth/auth.controller.ts`:
+
+```typescript
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
+  Get,
+  UseGuards,
+  Req,
+  Res,
+} from '@nestjs/common';
+import { Response } from 'express';
+import { AuthService } from './auth.service';
+import { SignupDto } from './dto/signup.dto';
+import { LoginDto } from './dto/login.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { CurrentUser } from './decorators/current-user.decorator';
+import { User } from '@chatai/shared';
+
+@Controller('auth')
+export class AuthController {
+  constructor(private authService: AuthService) {}
+
+  /**
+   * POST /auth/signup
+   * Register new user with email/phone and password
+   */
+  @Post('signup')
+  async signup(@Body() signupDto: SignupDto) {
+    return this.authService.signup(signupDto);
+  }
+
+  /**
+   * POST /auth/login
+   * Login with email/phone and password
+   */
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  async login(@Body() loginDto: LoginDto) {
+    return this.authService.login(loginDto);
+  }
+
+  /**
+   * POST /auth/refresh
+   * Get new access token using refresh token
+   */
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
+    return this.authService.refreshToken(refreshTokenDto.refresh_token);
+  }
+
+  /**
+   * GET /auth/me
+   * Get current authenticated user profile
+   */
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  async getProfile(@CurrentUser() user: User) {
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      avatar_url: user.avatar_url,
+      auth_provider: user.auth_provider,
+      created_at: user.created_at,
+    };
+  }
+}
+```
+
+---
+
+### **Step 5: Create Database Module (15 min)**
+
+#### 5.1 Create Database Config
+
+Create `src/config/database.config.ts`:
+
+```typescript
+import { TypeOrmModuleOptions } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
+import { User } from '@chatai/shared';
+
+export const getDatabaseConfig = (
+  configService: ConfigService,
+): TypeOrmModuleOptions => ({
+  type: 'postgres',
+  host: configService.get('DATABASE_HOST', 'localhost'),
+  port: configService.get('DATABASE_PORT', 5432),
+  username: configService.get('DATABASE_USER', 'postgres'),
+  password: configService.get('DATABASE_PASSWORD', 'postgres'),
+  database: configService.get('DATABASE_NAME', 'chatai_platform'),
+  entities: [User],
+  synchronize: false,
+  logging: configService.get('NODE_ENV') === 'development',
+});
+```
+
+#### 5.2 Create Database Module
+
+Create `src/database/database.module.ts`:
+
+```typescript
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { getDatabaseConfig } from '../config/database.config';
+
+@Module({
+  imports: [
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: getDatabaseConfig,
+    }),
+  ],
+})
+export class DatabaseModule {}
+```
+
+---
+
+### **Step 6: Test Basic Auth (30 min)**
+
+#### 6.1 Create App Module & Main (Temporary)
+
+Create `src/app.module.ts`:
+
+```typescript
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { DatabaseModule } from './database/database.module';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '../../.env',
+    }),
+    DatabaseModule,
+  ],
+})
+export class AppModule {}
+```
+
+Create `src/main.ts`:
+
+```typescript
+import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+
+  app.enableCors({
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    credentials: true,
+  });
+
+  const port = process.env.AUTH_SERVICE_PORT || 4002;
+  await app.listen(port);
+  console.log(`🔐 Auth Service running on http://localhost:${port}`);
+}
+bootstrap();
+```
+
+#### 6.2 Test Connection
+
+```bash
+cd services/auth-service
+pnpm start:dev
+
+# Should see: 🔐 Auth Service running on http://localhost:4002
+# Stop with Ctrl+C for now
+```
+
+---
+
+## Day 3: OAuth Integration
+
+### **Step 7: Create JWT Strategy (30 min)**
+
+Create `src/auth/strategies/jwt.strategy.ts`:
+
+```typescript
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { PassportStrategy } from '@nestjs/passport';
+import { ExtractJwt, Strategy } from 'passport-jwt';
+import { ConfigService } from '@nestjs/config';
+import { AuthService } from '../auth.service';
+
+@Injectable()
+export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
+  constructor(
+    private configService: ConfigService,
+    private authService: AuthService,
+  ) {
+    super({
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ignoreExpiration: false,
+      secretOrKey: configService.get('JWT_SECRET'),
+    });
+  }
+
+  async validate(payload: any) {
+    const user = await this.authService.validateUser(payload.sub);
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+    return user;
+  }
+}
+```
+
+---
+
+### **Step 8: Create OAuth Strategies (2 hours)**
+
+#### 8.1 Google OAuth Strategy
+
+Create `src/auth/strategies/google.strategy.ts`:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { PassportStrategy } from '@nestjs/passport';
+import { Strategy, VerifyCallback, Profile } from 'passport-google-oauth20';
+import { ConfigService } from '@nestjs/config';
+import { AuthService } from '../auth.service';
+import { AuthProvider } from '@chatai/shared';
+
+@Injectable()
+export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
+  constructor(
+    private configService: ConfigService,
+    private authService: AuthService,
+  ) {
+    super({
+      clientID: configService.get('GOOGLE_CLIENT_ID'),
+      clientSecret: configService.get('GOOGLE_CLIENT_SECRET'),
+      callbackURL: configService.get('GOOGLE_CALLBACK_URL'),
+      scope: ['email', 'profile'],
+    });
+  }
+
+  async validate(
+    accessToken: string,
+    refreshToken: string,
+    profile: Profile,
+    done: VerifyCallback,
+  ): Promise<any> {
+    try {
+      const { id, name, emails, photos } = profile;
+
+      const user = await this.authService.findOrCreateOAuthUser(
+        AuthProvider.GOOGLE,
+        {
+          id,
+          email: emails[0].value,
+          name: `${name.givenName} ${name.familyName}`,
+          avatar: photos?.[0]?.value,
+        },
+      );
+
+      done(null, user);
+    } catch (error) {
+      done(error, null);
+    }
+  }
+}
+```
+
+#### 8.2 Facebook OAuth Strategy
+
+Create `src/auth/strategies/facebook.strategy.ts`:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { PassportStrategy } from '@nestjs/passport';
+import { Strategy, Profile } from 'passport-facebook';
+import { ConfigService } from '@nestjs/config';
+import { AuthService } from '../auth.service';
+import { AuthProvider } from '@chatai/shared';
+
+@Injectable()
+export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
+  constructor(
+    private configService: ConfigService,
+    private authService: AuthService,
+  ) {
+    super({
+      clientID: configService.get('FACEBOOK_APP_ID'),
+      clientSecret: configService.get('FACEBOOK_APP_SECRET'),
+      callbackURL: configService.get('FACEBOOK_CALLBACK_URL'),
+      scope: ['email'],
+      profileFields: ['id', 'displayName', 'emails', 'photos'],
+    });
+  }
+
+  async validate(
+    accessToken: string,
+    refreshToken: string,
+    profile: Profile,
+    done: (error: any, user?: any) => void,
+  ): Promise<any> {
+    try {
+      const { id, displayName, emails, photos } = profile;
+
+      const user = await this.authService.findOrCreateOAuthUser(
+        AuthProvider.FACEBOOK,
+        {
+          id,
+          email: emails[0].value,
+          name: displayName,
+          avatar: photos?.[0]?.value,
+        },
+      );
+
+      done(null, user);
+    } catch (error) {
+      done(error, null);
+    }
+  }
+}
+```
+
+#### 8.3 TikTok OAuth Strategy
+
+Create `src/auth/strategies/tiktok.strategy.ts`:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { PassportStrategy } from '@nestjs/passport';
+import { Strategy } from 'passport-oauth2';
+import { ConfigService } from '@nestjs/config';
+import { AuthService } from '../auth.service';
+import { AuthProvider } from '@chatai/shared';
+import axios from 'axios';
+
+@Injectable()
+export class TikTokStrategy extends PassportStrategy(Strategy, 'tiktok') {
+  constructor(
+    private configService: ConfigService,
+    private authService: AuthService,
+  ) {
+    super({
+      authorizationURL: 'https://www.tiktok.com/v2/auth/authorize/',
+      tokenURL: 'https://open.tiktokapis.com/v2/oauth/token/',
+      clientID: configService.get('TIKTOK_CLIENT_KEY'),
+      clientSecret: configService.get('TIKTOK_CLIENT_SECRET'),
+      callbackURL: configService.get('TIKTOK_CALLBACK_URL'),
+      scope: ['user.info.basic'],
+    });
+  }
+
+  async validate(
+    accessToken: string,
+    refreshToken: string,
+    profile: any,
+    done: any,
+  ): Promise<any> {
+    try {
+      // Fetch user info from TikTok API
+      const response = await axios.get(
+        'https://open.tiktokapis.com/v2/user/info/',
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          params: {
+            fields: 'open_id,union_id,avatar_url,display_name',
+          },
+        },
+      );
+
+      const { open_id, display_name, avatar_url } = response.data.data.user;
+
+      // TikTok doesn't always provide email, generate temp one
+      const email = `tiktok_${open_id}@chatai.temp`;
+
+      const user = await this.authService.findOrCreateOAuthUser(
+        AuthProvider.TIKTOK,
+        {
+          id: open_id,
+          email: email,
+          name: display_name || 'TikTok User',
+          avatar: avatar_url,
+        },
+      );
+
+      done(null, user);
+    } catch (error) {
+      done(error, null);
+    }
+  }
+}
+```
+
+---
+
+### **Step 9: Create Auth Guards (30 min)**
+
+#### 9.1 JWT Auth Guard
+
+Create `src/auth/guards/jwt-auth.guard.ts`:
+
+```typescript
+import { Injectable, ExecutionContext } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+import { Observable } from 'rxjs';
+
+@Injectable()
+export class JwtAuthGuard extends AuthGuard('jwt') {
+  canActivate(
+    context: ExecutionContext,
+  ): boolean | Promise<boolean> | Observable<boolean> {
+    return super.canActivate(context);
+  }
+}
+```
+
+#### 9.2 OAuth Guards
+
+Create `src/auth/guards/google-auth.guard.ts`:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+
+@Injectable()
+export class GoogleAuthGuard extends AuthGuard('google') {}
+```
+
+Create `src/auth/guards/facebook-auth.guard.ts`:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+
+@Injectable()
+export class FacebookAuthGuard extends AuthGuard('facebook') {}
+```
+
+Create `src/auth/guards/tiktok-auth.guard.ts`:
+
+# XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+```typescript
 import { Injectable } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 
