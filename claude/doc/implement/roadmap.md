@@ -23,6 +23,356 @@
 
 ---
 
+## 📑 CHỈ MỤC CHI TIẾT
+
+### **PART 1: COMPLETE PROJECT ROADMAP** ✅ (Đã hoàn thành)
+**File:** `ROADMAP.md`  
+**Nội dung:**
+- 📊 Executive Summary
+- 🎯 Phase 0: Pre-Start Setup (3-4 days)
+  - Day 1: Project Management Setup (Jira + GitHub + Husky)
+  - Day 2: Communication & Environment (Slack + Docker)
+  - Day 3: API Keys & Accounts (OAuth + AI APIs)
+  - Day 4: Git Workflow & Final Setup
+- 🚀 Phase 1: Backend Core (8 weeks)
+  - Week 1-2: M1 & M2 (Database + Auth)
+  - Week 3-4: M3 & M4 (User/Project + API Gateway)
+  - Week 5-6: M5 & M6 (Chat + WebSocket)
+  - Week 7-8: M6.5 & M7 (Notifications + Billing)
+- 🎨 Phase 2: Advanced Features (6 weeks)
+  - Week 9-10: M8 (Frontend Web)
+  - Week 11-12: M9 (Voice & File Upload)
+  - Week 13-14: M10 & M11 (Agent Mgmt + Mobile)
+- 🚢 Phase 3: Deployment & ML (4 weeks)
+  - Week 15-16: M12 (K8s Deployment)
+  - Week 17-18: M13 (ML Training)
+- 🔒 Phase 4: Hardening & Beta (4 weeks)
+  - Week 19: M14 (Security & Performance)
+  - Week 20: Testing & QA
+  - Week 21: Documentation & Staging
+  - Week 22: Beta Release
+- 📈 Weekly Breakdown Calendar
+- 👥 Team Allocation
+- 📊 Metrics & KPIs
+- 🎯 Final Deliverables
+- ✅ Success Criteria
+- 🚨 Risk Management
+- 🔄 Sprint Ceremonies
+
+---
+
+### **PART 2: JIRA SETUP GUIDE** ⏳ (Chưa tạo)
+**File:** `JIRA-SETUP-GUIDE.md`  
+**Nội dung dự kiến:**
+1. **Jira Account Setup**
+   - Create Jira workspace
+   - Add team members
+   - Configure permissions
+2. **Project Configuration**
+   - Create project "ChatAI Platform" (CAP)
+   - Setup project type (Scrum)
+   - Configure issue types
+3. **Epic Creation (5 Epics)**
+   - Epic 1: Phase 0 - Pre-Start
+   - Epic 2: Phase 1 - Backend Core
+   - Epic 3: Phase 2 - Advanced Features
+   - Epic 4: Phase 3 - Deployment & ML
+   - Epic 5: Phase 4 - Hardening & Beta
+4. **Story Creation (14 Stories)**
+   - M1: Database Setup & Infrastructure
+   - M2: Auth Service
+   - M3: User/Project Service
+   - M4: API Gateway
+   - M5: Chat Orchestrator
+   - M6: WebSocket Gateway
+   - M6.5: Notification Service
+   - M7: Billing Service
+   - M8: Frontend Web
+   - M9: Voice & File Upload
+   - M10: Agent Management
+   - M11: Advanced Billing & Mobile
+   - M12: Deployment
+   - M13: ML Training
+   - M14: Security & Performance
+5. **Subtasks Breakdown**
+   - Each story with 3-6 subtasks
+   - Estimates (story points)
+   - Acceptance criteria
+6. **Workflow Configuration**
+   - To Do → In Progress → Review → Testing → Done
+   - Custom fields (Milestone, Phase, Priority)
+7. **Sprint Planning**
+   - Sprint 1 (Week 1-2): M1 & M2
+   - Sprint 2 (Week 3-4): M3 & M4
+   - Sprint duration: 2 weeks
+8. **Integration Setup**
+   - Link Jira to GitHub
+   - Link Jira to Slack
+   - Automation rules
+9. **Board Configuration**
+   - Scrum board setup
+   - Filters & quick filters
+   - Swimlanes by assignee
+10. **Reports Setup**
+    - Burndown chart
+    - Velocity chart
+    - Sprint report
+
+---
+
+### **PART 3: PHASE 0 - PRE-START IMPLEMENTATION** ⏳ (Chưa tạo)
+**File:** `PHASE-0-IMPLEMENTATION.md`  
+**Nội dung dự kiến:**
+1. **Day 1: Project Management Setup**
+   - Step-by-step Jira creation
+   - GitHub repo initialization
+   - Husky installation & configuration
+   - Pre-commit hook code
+   - Commit-msg hook code
+   - Pre-push hook code
+2. **Day 2: Communication & Environment**
+   - Slack workspace creation
+   - Channel setup guide
+   - GitHub/Jira app installation
+   - Docker Compose file (PostgreSQL, Redis, MinIO)
+   - .env.example template
+3. **Day 3: API Keys & Accounts**
+   - Google OAuth setup guide
+   - Facebook OAuth setup guide
+   - TikTok OAuth setup guide
+   - OpenAI API key
+   - Gemini API key
+4. **Day 4: Git Workflow & Final Setup**
+   - Branch strategy
+   - PR template
+   - GitHub Actions workflow
+   - Team kickoff meeting agenda
+
+---
+
+### **PART 4: PHASE 1 - BACKEND CORE IMPLEMENTATION** ⏳ (Chưa tạo)
+**File:** `PHASE-1-IMPLEMENTATION.md`  
+**Nội dung dự kiến:**
+1. **M1: Database Setup & Infrastructure**
+   - Docker Compose complete code
+   - TypeORM entities (8 tables)
+   - Migration scripts
+   - Seed data scripts
+   - CI/CD GitHub Actions workflow
+2. **M2: Auth Service**
+   - NestJS project structure
+   - auth.service.ts code
+   - auth.controller.ts code
+   - JWT strategy code
+   - OAuth strategies (Google, Facebook, TikTok)
+   - Unit tests
+3. **M3: User/Project Service**
+   - users.controller.ts code
+   - users.service.ts code
+   - projects.controller.ts code
+   - projects.service.ts code
+   - conversations.controller.ts code
+   - RBAC implementation
+4. **M4: API Gateway**
+   - NestJS API Gateway setup
+   - Proxy routes configuration
+   - JWT middleware
+   - Rate limiting middleware
+   - Swagger configuration
+5. **M5: Chat Orchestrator**
+   - chat.controller.ts code
+   - chat.service.ts code
+   - Context management utility
+   - OpenAI integration
+   - Gemini integration
+6. **M6: WebSocket Gateway**
+   - Socket.io setup
+   - chat.gateway.ts code
+   - Room management
+   - Realtime streaming
+   - Typing indicators
+7. **M6.5: Notification Service**
+   - notification.service.ts code
+   - notification.controller.ts code
+   - WebSocket notifications
+   - Email notifications (nodemailer)
+   - RabbitMQ integration
+8. **M7: Billing Service**
+   - billing.service.ts code
+   - billing.controller.ts code
+   - Usage logging
+   - Report generation
+   - CSV export
+
+---
+
+### **PART 5: PHASE 2 - ADVANCED FEATURES IMPLEMENTATION** ⏳ (Chưa tạo)
+**File:** `PHASE-2-IMPLEMENTATION.md`  
+**Nội dung dự kiến:**
+1. **M8: Frontend Web**
+   - Next.js 14 project setup
+   - Auth pages (login, signup, OAuth callback)
+   - Projects dashboard
+   - Chat interface
+   - WebSocket integration
+   - Notifications UI
+   - Tailwind CSS setup
+   - Cypress E2E tests
+2. **M9: Voice & File Upload**
+   - VoiceRecorder.tsx component
+   - Web Speech API integration
+   - TTS implementation
+   - FileUploader.tsx component
+   - File processing backend (PyPDF2, python-docx)
+   - MinIO integration
+3. **M10: Agent Management**
+   - Agent CRUD endpoints
+   - Agent UI components
+   - API key encryption
+   - Test connection feature
+4. **M11: Advanced Billing & Mobile**
+   - Billing dashboard UI
+   - Charts & reports
+   - CSV/PDF export
+   - React Native (Expo) setup
+   - Mobile screens (Login, Projects, Chat)
+   - Mobile API integration
+
+---
+
+### **PART 6: PHASE 3 - DEPLOYMENT & ML IMPLEMENTATION** ⏳ (Chưa tạo)
+**File:** `PHASE-3-IMPLEMENTATION.md`  
+**Nội dung dự kiến:**
+1. **M12: Deployment**
+   - Dockerfiles for all services
+   - docker-compose.yml complete
+   - Kubernetes manifests (Deployments, Services, Ingress)
+   - Terraform scripts (AWS EKS / GCP GKE)
+   - PostgreSQL StatefulSet
+   - Redis deployment
+   - ConfigMaps & Secrets
+   - Monitoring setup (Prometheus + Grafana)
+2. **M13: ML Training**
+   - FastAPI ML training service
+   - Hugging Face Transformers integration
+   - Training endpoint code
+   - Progress tracking (WebSocket)
+   - Model deployment automation
+   - Docker image builder
+   - Self-hosted agent deployment
+   - Admin UI for training
+
+---
+
+### **PART 7: PHASE 4 - HARDENING & BETA RELEASE** ⏳ (Chưa tạo)
+**File:** `PHASE-4-IMPLEMENTATION.md`  
+**Nội dung dự kiến:**
+1. **M14: Security & Performance**
+   - OWASP ZAP scan guide
+   - Snyk scan integration
+   - Security fixes checklist
+   - Database optimization (indexes)
+   - Redis caching implementation
+   - CDN setup
+   - Load testing scripts (Artillery)
+2. **Week 20: Testing & QA**
+   - E2E test suite complete
+   - Cross-browser testing checklist
+   - Mobile testing guide
+   - Load testing results
+   - Bug fixing process
+3. **Week 21: Documentation & Staging**
+   - User guide template
+   - Developer guide template
+   - API documentation (Swagger)
+   - Deployment guide
+   - Architecture diagrams
+   - Staging deployment checklist
+4. **Week 22: Beta Release**
+   - Production deployment checklist
+   - Beta user invitation template
+   - Monitoring dashboard setup
+   - Support channel setup
+   - Launch day runbook
+   - Handover documentation
+
+---
+
+### **APPENDIX: TEMPLATES & REFERENCES** ⏳ (Chưa tạo)
+**File:** `APPENDIX-TEMPLATES.md`  
+**Nội dung dự kiến:**
+1. **Code Templates**
+   - NestJS service template
+   - NestJS controller template
+   - TypeORM entity template
+   - React component template
+   - Unit test template
+   - Integration test template
+2. **Document Templates**
+   - PR template
+   - Issue template
+   - Bug report template
+   - Feature request template
+   - Meeting notes template
+   - Sprint review template
+3. **Configuration Files**
+   - .eslintrc.json
+   - .prettierrc
+   - tsconfig.json
+   - jest.config.js
+   - docker-compose.yml
+   - .env.example
+4. **Reference Links**
+   - NestJS documentation
+   - Next.js documentation
+   - TypeORM documentation
+   - Kubernetes documentation
+   - Terraform documentation
+   - Best practices guides
+
+---
+
+## 📊 TRẠNG THÁI HOÀN THÀNH
+
+| Part | Tên | Trạng thái | Ước tính thời gian tạo |
+|------|-----|-----------|----------------------|
+| **PART 1** | Complete Project Roadmap | ✅ Hoàn thành | - |
+| **PART 2** | Jira Setup Guide | ⏳ Chưa tạo | 2-3 giờ |
+| **PART 3** | Phase 0 Implementation | ⏳ Chưa tạo | 3-4 giờ |
+| **PART 4** | Phase 1 Implementation | ⏳ Chưa tạo | 8-10 giờ |
+| **PART 5** | Phase 2 Implementation | ⏳ Chưa tạo | 6-8 giờ |
+| **PART 6** | Phase 3 Implementation | ⏳ Chưa tạo | 4-5 giờ |
+| **PART 7** | Phase 4 Implementation | ⏳ Chưa tạo | 3-4 giờ |
+| **APPENDIX** | Templates & References | ⏳ Chưa tạo | 2-3 giờ |
+
+**Tổng ước tính:** 28-37 giờ để hoàn thành toàn bộ documentation
+
+---
+
+## 🎯 KHUYẾN NGHỊ SỬ DỤNG
+
+### **Cho PM/Lead:**
+- Đọc PART 1 (Roadmap) để nắm overview
+- Dùng PART 2 (Jira Setup) để setup project management
+- Dùng PART 3-7 làm reference khi implement từng phase
+
+### **Cho Developers:**
+- Đọc PART 1 để hiểu timeline & dependencies
+- Tham khảo PART 4-7 khi code từng milestone
+- Dùng APPENDIX cho code templates
+
+### **Cho QA/Tester:**
+- Đọc PART 1 để biết test plan cho từng phase
+- Dùng PART 7 cho testing & QA guidelines
+- Theo dõi success criteria trong PART 1
+
+### **Cho DevOps:**
+- Focus vào PART 6 (Deployment & ML)
+- Dùng PART 3 cho initial setup
+- Reference APPENDIX cho config files
+
+---
+
 ## 🎯 PHASE 0: PRE-START SETUP (3-4 Days)
 
 **Goal:** Setup all tools, accounts, and environment before coding
