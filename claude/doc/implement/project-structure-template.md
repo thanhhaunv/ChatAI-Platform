@@ -1,3 +1,4 @@
+```
 ChatAI-Platform/
 │
 ├── 📂 .github/
@@ -447,3 +448,4 @@ ChatAI-Platform/
 ├── README.md
 ├── CONTRIBUTING.md
 └── LICENSE
+```
