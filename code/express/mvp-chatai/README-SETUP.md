@@ -4530,3 +4530,629 @@ export default function ProjectsPage() {
 - **"Test trước"** → Test login + projects trước
 
 **Chờ lệnh! 🚀**
+# 🎯 PHẦN 7 (TIẾP): CHAT INTERFACE + MESSAGE LIST
+
+**2 files cuối cùng của frontend!**
+
+---
+
+## 📄 FILE 13: `frontend/components/MessageList.tsx`
+
+```typescript
+'use client';
+
+import { useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import { Bot, User } from 'lucide-react';
+
+interface Message {
+  id: number;
+  content: string;
+  role: 'user' | 'assistant' | 'system';
+  createdAt?: string;
+  user?: { name: string };
+  agent?: { name: string };
+}
+
+interface Props {
+  messages: Message[];
+  streamingMessage?: string;
+}
+
+export default function MessageList({ messages, streamingMessage }: Props) {
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, streamingMessage]);
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {messages.map((message) => (
+        <div
+          key={message.id}
+          className={`flex gap-3 ${
+            message.role === 'user' ? 'justify-end' : 'justify-start'
+          }`}
+        >
+          {message.role === 'assistant' && (
+            <div className="flex-shrink-0 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+              <Bot size={18} className="text-white" />
+            </div>
+          )}
+
+          <div
+            className={`max-w-[70%] rounded-lg px-4 py-2 ${
+              message.role === 'user'
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-100 text-gray-900'
+            }`}
+          >
+            {message.role === 'assistant' ? (
+              <div className="prose prose-sm max-w-none">
+                <ReactMarkdown>{message.content}</ReactMarkdown>
+              </div>
+            ) : (
+              <p className="whitespace-pre-wrap">{message.content}</p>
+            )}
+            
+            {message.createdAt && (
+              <p className={`text-xs mt-1 ${
+                message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
+              }`}>
+                {new Date(message.createdAt).toLocaleTimeString()}
+              </p>
+            )}
+          </div>
+
+          {message.role === 'user' && (
+            <div className="flex-shrink-0 w-8 h-8 bg-gray-500 rounded-full flex items-center justify-center">
+              <User size={18} className="text-white" />
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* Streaming message */}
+      {streamingMessage && (
+        <div className="flex gap-3 justify-start">
+          <div className="flex-shrink-0 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+            <Bot size={18} className="text-white" />
+          </div>
+          <div className="max-w-[70%] rounded-lg px-4 py-2 bg-gray-100 text-gray-900">
+            <div className="prose prose-sm max-w-none">
+              <ReactMarkdown>{streamingMessage}</ReactMarkdown>
+            </div>
+            <div className="flex items-center gap-1 mt-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div ref={messagesEndRef} />
+    </div>
+  );
+}
+```
+
+---
+
+## 📄 FILE 14: `frontend/app/chat/[projectId]/[threadId]/page.tsx`
+
+```typescript
+'use client';
+
+import { useEffect, useState, useRef } from 'react';
+import { useRouter, useParams } from 'next/navigation';
+import { chatApi } from '@/lib/api';
+import { connectSocket, getSocket } from '@/lib/socket';
+import MessageList from '@/components/MessageList';
+import { Send, ArrowLeft, DollarSign } from 'lucide-react';
+
+interface Message {
+  id: number;
+  content: string;
+  role: 'user' | 'assistant' | 'system';
+  createdAt: string;
+  tokens?: number;
+  user?: { id: number; name: string };
+  agent?: { id: number; name: string; type: string };
+}
+
+interface Conversation {
+  id: number;
+  threadId: string;
+  title: string;
+}
+
+export default function ChatPage() {
+  const params = useParams();
+  const router = useRouter();
+  const projectId = parseInt(params.projectId as string);
+  const threadId = params.threadId as string;
+
+  const [conversation, setConversation] = useState<Conversation | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [streamingMessage, setStreamingMessage] = useState('');
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [agentId] = useState(1); // Default to GPT-4
+  const [usage, setUsage] = useState({ totalTokens: 0, estimatedCost: 0 });
+
+  const socketRef = useRef<any>(null);
+
+  useEffect(() => {
+    loadChatHistory();
+    loadUsage();
+    setupWebSocket();
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.emit('leave_thread', { threadId });
+      }
+    };
+  }, [threadId]);
+
+  const loadChatHistory = async () => {
+    try {
+      const response = await chatApi.getHistory(projectId, threadId);
+      setConversation(response.data.conversation);
+      setMessages(response.data.messages);
+    } catch (error) {
+      console.error('Failed to load chat history:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadUsage = async () => {
+    try {
+      const response = await chatApi.getUsage(projectId, threadId);
+      setUsage(response.data);
+    } catch (error) {
+      console.error('Failed to load usage:', error);
+    }
+  };
+
+  const setupWebSocket = () => {
+    try {
+      const socket = connectSocket();
+      socketRef.current = socket;
+
+      socket.emit('join_thread', { threadId });
+
+      socket.on('joined_thread', (data: any) => {
+        console.log('✅ Joined thread:', data.threadId);
+      });
+
+      socket.on('new_message', (message: Message) => {
+        setMessages((prev) => [...prev, message]);
+      });
+
+      socket.on('message_stream_start', () => {
+        setStreamingMessage('');
+      });
+
+      socket.on('message_stream_chunk', (data: { content: string }) => {
+        setStreamingMessage((prev) => prev + data.content);
+      });
+
+      socket.on('message_stream_end', (message: Message) => {
+        setMessages((prev) => [...prev, message]);
+        setStreamingMessage('');
+        setSending(false);
+        loadUsage();
+      });
+
+      socket.on('error', (error: any) => {
+        console.error('WebSocket error:', error);
+        alert(error.message);
+        setSending(false);
+      });
+    } catch (error) {
+      console.error('Failed to setup WebSocket:', error);
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!input.trim() || sending) return;
+
+    const userMessage = input;
+    setInput('');
+    setSending(true);
+
+    // Add user message optimistically
+    const tempMessage: Message = {
+      id: Date.now(),
+      content: userMessage,
+      role: 'user',
+      createdAt: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, tempMessage]);
+
+    try {
+      const socket = getSocket();
+      if (socket?.connected) {
+        // Send via WebSocket for streaming
+        socket.emit('send_message', {
+          threadId,
+          content: userMessage,
+          agentId,
+          projectId,
+        });
+      } else {
+        // Fallback to REST API
+        const response = await chatApi.sendMessage(projectId, {
+          content: userMessage,
+          agentId,
+          threadId,
+        });
+        setMessages((prev) => [
+          ...prev.filter((m) => m.id !== tempMessage.id),
+          response.data.userMessage,
+          response.data.assistantMessage,
+        ]);
+        setSending(false);
+        loadUsage();
+      }
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      alert('Failed to send message');
+      setSending(false);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => router.push('/projects')}
+            className="p-2 hover:bg-gray-100 rounded"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h1 className="font-semibold">{conversation?.title}</h1>
+            <p className="text-xs text-gray-500">Thread ID: {threadId.slice(0, 8)}...</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-1 text-gray-600">
+            <DollarSign size={16} />
+            <span>{usage.totalTokens.toLocaleString()} tokens</span>
+          </div>
+          <div className="text-gray-500">
+            ${usage.estimatedCost.toFixed(4)}
+          </div>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <MessageList messages={messages} streamingMessage={streamingMessage} />
+
+      {/* Input */}
+      <div className="bg-white border-t border-gray-200 p-4">
+        <div className="max-w-4xl mx-auto flex gap-2">
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Type your message... (Press Enter to send, Shift+Enter for new line)"
+            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            rows={1}
+            disabled={sending}
+            style={{ minHeight: '52px', maxHeight: '200px' }}
+            onInput={(e) => {
+              const target = e.target as HTMLTextAreaElement;
+              target.style.height = 'auto';
+              target.style.height = target.scrollHeight + 'px';
+            }}
+          />
+          <button
+            onClick={sendMessage}
+            disabled={!input.trim() || sending}
+            className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            <Send size={18} />
+            {sending ? 'Sending...' : 'Send'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+## 📄 FILE 15: `frontend/.env.local`
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:3001
+```
+
+---
+
+## 📄 FILE 16: `frontend/postcss.config.js`
+
+```javascript
+module.exports = {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+}
+```
+
+---
+
+## ✅ SETUP FRONTEND
+
+**Bước 1: Create frontend folder**
+```bash
+cd mvp-chatai
+mkdir frontend
+cd frontend
+```
+
+**Bước 2: Copy all files**
+Copy 16 files trên vào đúng vị trí
+
+**Bước 3: Install dependencies**
+```bash
+npm install
+```
+
+**Bước 4: Start frontend**
+```bash
+npm run dev
+```
+
+**Expected output:**
+```
+▲ Next.js 14.1.0
+- Local:        http://localhost:3000
+- Ready in 2.3s
+```
+
+---
+
+## 🧪 FULL SYSTEM TEST
+
+### **Test 1: Login**
+
+1. Open browser: http://localhost:3000
+2. You'll be redirected to: http://localhost:3000/login
+3. Click "Sign Up" tab
+4. Enter:
+   - Name: Demo User
+   - Email: demo@example.com
+   - Password: password123
+5. Click "Sign Up"
+6. You should be redirected to Projects page
+
+### **Test 2: Create Project**
+
+1. Click "+" next to "Projects"
+2. Enter name: "My AI Assistant"
+3. Press Enter
+4. Project appears in sidebar
+
+### **Test 3: Create Thread**
+
+1. Select project "My AI Assistant"
+2. Click "New Chat" button
+3. Enter title: "Customer Support Bot"
+4. Click "Create"
+5. You'll be redirected to chat interface
+
+### **Test 4: Chat with AI (WebSocket Streaming!)**
+
+1. In chat interface, type: "Tell me a story about AI"
+2. Press Enter
+3. Watch:
+   - ✅ Your message appears immediately
+   - ✅ AI starts responding (streaming word by word!)
+   - ✅ Tokens count updates in header
+   - ✅ Cost updates
+
+### **Test 5: Continue Conversation (Context!)**
+
+1. Type: "Make it shorter"
+2. Press Enter
+3. AI should understand "it" = the previous story (context maintained!)
+
+### **Test 6: Multiple Threads**
+
+1. Click back arrow (top left)
+2. Click "New Chat" again
+3. Create another thread: "Code Helper"
+4. Chat in this new thread
+5. Go back to Projects
+6. Both threads should be visible
+7. Click on first thread → old conversation intact!
+
+### **Test 7: Token Usage**
+
+1. In any thread, look at top right
+2. You'll see:
+   - Token count (e.g., "1,234 tokens")
+   - Estimated cost (e.g., "$0.0025")
+
+### **Test 8: Real-time Streaming (THE WOW MOMENT!)**
+
+1. Type a long prompt: "Explain quantum computing in detail with examples"
+2. Press Enter
+3. Watch AI response appear **word by word in real-time**
+4. This is WebSocket streaming in action!
+
+### **Test 9: Markdown Support**
+
+1. Type: "Give me a bulleted list of 5 AI benefits"
+2. AI response should render with:
+   - ✅ Bullet points
+   - ✅ Bold text
+   - ✅ Code blocks (if any)
+
+### **Test 10: Logout & Login**
+
+1. Click "Logout" in sidebar
+2. You're back at login page
+3. Login with: demo@example.com / password123
+4. All your projects and threads are still there!
+
+---
+
+## 📸 EXPECTED UI
+
+### **Login Page:**
+```
+┌─────────────────────────────┐
+│   🤖 ChatAI Platform        │
+│                             │
+│  [Login] [Sign Up]          │
+│                             │
+│  Email: [____________]      │
+│  Password: [________]       │
+│                             │
+│  [Login Button]             │
+└─────────────────────────────┘
+```
+
+### **Projects Page:**
+```
+┌──────────┬────────────────────────────┐
+│          │  My AI Assistant           │
+│ Projects │  [New Chat]                │
+│  [+]     │                            │
+│          │  ┌──────────────┐          │
+│ My AI    │  │ Customer     │          │
+│ Assistant│  │ Support Bot  │          │
+│ 2 threads│  │ Dec 25       │          │
+│          │  └──────────────┘          │
+│          │  ┌──────────────┐          │
+│ [Logout] │  │ Code Helper  │          │
+│          │  │ Dec 25       │          │
+└──────────┴──┴──────────────┴──────────┘
+```
+
+### **Chat Interface:**
+```
+┌────────────────────────────────────────┐
+│ [←] Customer Support Bot  1,234 tokens │
+│                            $0.0025     │
+├────────────────────────────────────────┤
+│                                        │
+│  [Bot] Hello! How can I help you?     │
+│                                        │
+│              Tell me a story [User]    │
+│                                        │
+│  [Bot] Once upon a time... [streaming] │
+│                                        │
+├────────────────────────────────────────┤
+│ [________________] [Send]              │
+└────────────────────────────────────────┘
+```
+
+---
+
+## 🎉 SUCCESS CRITERIA
+
+**✅ MVP is complete when:**
+
+- [ ] Can signup/login
+- [ ] Can create projects
+- [ ] Can create threads
+- [ ] Can chat with AI
+- [ ] AI responses stream in real-time
+- [ ] Context is maintained across messages
+- [ ] Token usage is tracked
+- [ ] Markdown renders properly
+- [ ] Multiple threads work
+- [ ] WebSocket works (word-by-word streaming)
+- [ ] Logout/login preserves data
+
+---
+
+## 🚀 DEMO SCRIPT FOR INVESTORS
+
+**1. Opening (30 seconds):**
+"This is ChatAI Platform - a multi-tenant AI chat platform supporting multiple agents with threading."
+
+**2. Login (10 seconds):**
+Show signup → Projects page
+
+**3. Create Project (20 seconds):**
+"Create a project called 'Customer Service AI'"
+
+**4. Chat Demo (60 seconds):**
+"Watch this - I'll ask AI a question and it responds in REAL-TIME, word by word"
+Type: "Write a poem about artificial intelligence"
+**Highlight:** Words appearing one by one
+
+**5. Context Demo (30 seconds):**
+"Now watch context - I'll say 'make it shorter'"
+AI understands "it" refers to the poem
+
+**6. Threading (30 seconds):**
+"I can have multiple conversations in parallel"
+Show 2 threads side by side
+
+**7. Billing (20 seconds):**
+"Token usage tracked in real-time - see the counter?"
+
+**8. Closing (30 seconds):**
+"Built in 2 days. Full features: Auth, Projects, Threading, Real-time streaming, Multiple AI agents."
+
+**Total: 4 minutes**
+
+---
+
+## 📞 WHAT'S NEXT?
+
+**Current MVP has:**
+- ✅ Authentication (JWT)
+- ✅ Projects with RBAC
+- ✅ Threading (context maintained)
+- ✅ Chat with AI (OpenAI)
+- ✅ Real-time WebSocket streaming
+- ✅ Token tracking
+- ✅ Full UI (responsive)
+
+**Still missing (for full product):**
+- ❌ Voice input/output
+- ❌ File upload
+- ❌ Multiple agents selector
+- ❌ Mobile app
+- ❌ ML training
+- ❌ Advanced billing reports
+
+**Reply with:**
+- **"Test now!"** → I'll wait for your feedback
+- **"Add voice next"** → I'll create voice input component
+- **"Add file upload"** → I'll create file uploader
+- **"It's perfect!"** → I'll create deployment guide
+
+**Ready for your feedback! 🎉**
