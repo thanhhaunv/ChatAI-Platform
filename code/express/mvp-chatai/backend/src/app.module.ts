@@ -4,6 +4,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { ProjectsModule } from './projects/projects.module';
 import { ConversationsModule } from './conversations/conversations.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -12,8 +13,9 @@ import { ConversationsModule } from './conversations/conversations.module';
     }),
     PrismaModule,
     AuthModule,
-    ProjectsModule, // ← ADD
-    ConversationsModule, // ← ADD
+    ProjectsModule,
+    ConversationsModule,
+    ChatModule, // ← ADD
   ],
 })
 export class AppModule {}
