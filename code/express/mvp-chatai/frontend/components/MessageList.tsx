@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Bot, User } from 'lucide-react';
+import TTSPlayer from './TTSPlayer';
 
 interface Message {
   id: number;
@@ -55,13 +56,20 @@ export default function MessageList({ messages, streamingMessage }: Props) {
               <p className="whitespace-pre-wrap">{message.content}</p>
             )}
             
-            {message.createdAt && (
-              <p className={`text-xs mt-1 ${
-                message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
-              }`}>
-                {new Date(message.createdAt).toLocaleTimeString()}
-              </p>
-            )}
+            <div className="flex items-center justify-between mt-1">
+              {message.createdAt && (
+                <p className={`text-xs ${
+                  message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
+                }`}>
+                  {new Date(message.createdAt).toLocaleTimeString()}
+                </p>
+              )}
+              
+              {/* TTS button for assistant messages */}
+              {message.role === 'assistant' && (
+                <TTSPlayer text={message.content} />
+              )}
+            </div>
           </div>
 
           {message.role === 'user' && (
