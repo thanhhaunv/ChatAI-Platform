@@ -3765,3 +3765,768 @@ Next: Phần 7 - Frontend Web (Next.js)
 **Ready for frontend! 🚀**
 
 **Chờ confirm!**
+# 🎯 PHẦN 7: FRONTEND WEB (Next.js)
+
+**Mục tiêu:** UI hoàn chỉnh - Login, Projects, Chat với WebSocket
+
+**Thời gian:** 30-35 phút
+
+---
+
+## 📁 CẤU TRÚC PHẦN 7
+
+```
+frontend/
+├── package.json
+├── next.config.js
+├── tailwind.config.js
+├── tsconfig.json
+├── app/
+│   ├── layout.tsx
+│   ├── page.tsx
+│   ├── login/
+│   │   └── page.tsx
+│   ├── projects/
+│   │   └── page.tsx
+│   └── chat/
+│       └── [projectId]/
+│           └── [threadId]/
+│               └── page.tsx
+├── components/
+│   ├── ChatInput.tsx
+│   ├── MessageList.tsx
+│   ├── ProjectSidebar.tsx
+│   └── ThreadList.tsx
+└── lib/
+    ├── api.ts
+    ├── socket.ts
+    └── auth.ts
+```
+
+---
+
+## 📄 FILE 1: `frontend/package.json`
+
+```json
+{
+  "name": "chatai-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "14.1.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "axios": "^1.6.5",
+    "socket.io-client": "^4.6.1",
+    "react-markdown": "^9.0.1",
+    "lucide-react": "^0.309.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "typescript": "^5.3.3",
+    "tailwindcss": "^3.4.1",
+    "postcss": "^8.4.33",
+    "autoprefixer": "^10.4.17",
+    "eslint": "^8.56.0",
+    "eslint-config-next": "14.1.0"
+  }
+}
+```
+
+---
+
+## 📄 FILE 2: `frontend/next.config.js`
+
+```javascript
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  env: {
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001',
+  },
+  reactStrictMode: true,
+}
+
+module.exports = nextConfig
+```
+
+---
+
+## 📄 FILE 3: `frontend/tailwind.config.js`
+
+```javascript
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [
+    './pages/**/*.{js,ts,jsx,tsx,mdx}',
+    './components/**/*.{js,ts,jsx,tsx,mdx}',
+    './app/**/*.{js,ts,jsx,tsx,mdx}',
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+```
+
+---
+
+## 📄 FILE 4: `frontend/tsconfig.json`
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}
+```
+
+---
+
+## 📄 FILE 5: `frontend/app/globals.css`
+
+```css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+```
+
+---
+
+## 📄 FILE 6: `frontend/lib/auth.ts`
+
+```typescript
+export function getToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('token');
+}
+
+export function setToken(token: string) {
+  localStorage.setItem('token', token);
+}
+
+export function removeToken() {
+  localStorage.removeItem('token');
+}
+
+export function isAuthenticated(): boolean {
+  return !!getToken();
+}
+```
+
+---
+
+## 📄 FILE 7: `frontend/lib/api.ts`
+
+```typescript
+import axios from 'axios';
+import { getToken, removeToken } from './auth';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+const api = axios.create({
+  baseURL: API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Add token to requests
+api.interceptors.request.use((config) => {
+  const token = getToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Handle 401 errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      removeToken();
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
+// Auth
+export const authApi = {
+  login: (email: string, password: string) =>
+    api.post('/auth/login', { email, password }),
+  signup: (name: string, email: string, password: string) =>
+    api.post('/auth/signup', { name, email, password }),
+  me: () => api.get('/auth/me'),
+};
+
+// Projects
+export const projectsApi = {
+  getAll: () => api.get('/projects'),
+  getById: (id: number) => api.get(`/projects/${id}`),
+  create: (name: string) => api.post('/projects', { name }),
+  inviteMember: (projectId: number, email: string, role: string) =>
+    api.post(`/projects/${projectId}/members`, { email, role }),
+};
+
+// Conversations
+export const conversationsApi = {
+  getAll: (projectId: number) => api.get(`/projects/${projectId}/conversations`),
+  getByThreadId: (projectId: number, threadId: string) =>
+    api.get(`/projects/${projectId}/conversations/thread/${threadId}`),
+  create: (projectId: number, title: string) =>
+    api.post(`/projects/${projectId}/conversations`, { title }),
+};
+
+// Chat
+export const chatApi = {
+  sendMessage: (projectId: number, data: any) =>
+    api.post(`/projects/${projectId}/chat/message`, data),
+  getHistory: (projectId: number, threadId: string) =>
+    api.get(`/projects/${projectId}/chat/thread/${threadId}/history`),
+  getUsage: (projectId: number, threadId: string) =>
+    api.get(`/projects/${projectId}/chat/thread/${threadId}/usage`),
+};
+
+export default api;
+```
+
+---
+
+## 📄 FILE 8: `frontend/lib/socket.ts`
+
+```typescript
+import { io, Socket } from 'socket.io-client';
+import { getToken } from './auth';
+
+const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+let socket: Socket | null = null;
+
+export function connectSocket(): Socket {
+  if (socket?.connected) {
+    return socket;
+  }
+
+  const token = getToken();
+  if (!token) {
+    throw new Error('No authentication token');
+  }
+
+  socket = io(SOCKET_URL, {
+    auth: { token },
+  });
+
+  socket.on('connect', () => {
+    console.log('✅ WebSocket connected');
+  });
+
+  socket.on('disconnect', () => {
+    console.log('❌ WebSocket disconnected');
+  });
+
+  socket.on('error', (error) => {
+    console.error('❌ WebSocket error:', error);
+  });
+
+  return socket;
+}
+
+export function disconnectSocket() {
+  if (socket) {
+    socket.disconnect();
+    socket = null;
+  }
+}
+
+export function getSocket(): Socket | null {
+  return socket;
+}
+```
+
+---
+
+## 📄 FILE 9: `frontend/app/layout.tsx`
+
+```typescript
+import type { Metadata } from 'next';
+import './globals.css';
+
+export const metadata: Metadata = {
+  title: 'ChatAI Platform',
+  description: 'Multi-agent AI chat platform',
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+---
+
+## 📄 FILE 10: `frontend/app/page.tsx`
+
+```typescript
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { isAuthenticated } from '@/lib/auth';
+
+export default function Home() {
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isAuthenticated()) {
+      router.push('/projects');
+    } else {
+      router.push('/login');
+    }
+  }, [router]);
+
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+        <p className="mt-4 text-gray-600">Loading...</p>
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+## 📄 FILE 11: `frontend/app/login/page.tsx`
+
+```typescript
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { authApi } from '@/lib/api';
+import { setToken } from '@/lib/auth';
+
+export default function LoginPage() {
+  const [isLogin, setIsLogin] = useState(true);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      let response;
+      if (isLogin) {
+        response = await authApi.login(email, password);
+      } else {
+        response = await authApi.signup(name, email, password);
+      }
+
+      setToken(response.data.access_token);
+      router.push('/projects');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Authentication failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-md">
+        <h1 className="text-3xl font-bold text-center mb-6">
+          🤖 ChatAI Platform
+        </h1>
+
+        <div className="flex mb-6 border-b">
+          <button
+            className={`flex-1 py-2 ${isLogin ? 'border-b-2 border-blue-500 text-blue-500' : 'text-gray-500'}`}
+            onClick={() => setIsLogin(true)}
+          >
+            Login
+          </button>
+          <button
+            className={`flex-1 py-2 ${!isLogin ? 'border-b-2 border-blue-500 text-blue-500' : 'text-gray-500'}`}
+            onClick={() => setIsLogin(false)}
+          >
+            Sign Up
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {!isLogin && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Name
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Password
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+              minLength={6}
+            />
+          </div>
+
+          {error && (
+            <div className="text-red-500 text-sm text-center">{error}</div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-2 px-4 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Loading...' : isLogin ? 'Login' : 'Sign Up'}
+          </button>
+        </form>
+
+        <p className="mt-4 text-xs text-center text-gray-500">
+          Demo credentials: test@example.com / password123
+        </p>
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+## 📄 FILE 12: `frontend/app/projects/page.tsx`
+
+```typescript
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { projectsApi, conversationsApi } from '@/lib/api';
+import { removeToken } from '@/lib/auth';
+import { Plus, LogOut, MessageSquare } from 'lucide-react';
+
+interface Project {
+  id: number;
+  name: string;
+  _count: { conversations: number };
+}
+
+interface Conversation {
+  id: number;
+  threadId: string;
+  title: string;
+  updatedAt: string;
+}
+
+export default function ProjectsPage() {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showNewProject, setShowNewProject] = useState(false);
+  const [showNewThread, setShowNewThread] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [newThreadTitle, setNewThreadTitle] = useState('');
+  const router = useRouter();
+
+  useEffect(() => {
+    loadProjects();
+  }, []);
+
+  const loadProjects = async () => {
+    try {
+      const response = await projectsApi.getAll();
+      setProjects(response.data);
+      if (response.data.length > 0) {
+        selectProject(response.data[0]);
+      }
+    } catch (error) {
+      console.error('Failed to load projects:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const selectProject = async (project: Project) => {
+    setSelectedProject(project);
+    try {
+      const response = await conversationsApi.getAll(project.id);
+      setConversations(response.data);
+    } catch (error) {
+      console.error('Failed to load conversations:', error);
+    }
+  };
+
+  const createProject = async () => {
+    if (!newProjectName.trim()) return;
+    try {
+      await projectsApi.create(newProjectName);
+      setNewProjectName('');
+      setShowNewProject(false);
+      loadProjects();
+    } catch (error) {
+      console.error('Failed to create project:', error);
+    }
+  };
+
+  const createThread = async () => {
+    if (!newThreadTitle.trim() || !selectedProject) return;
+    try {
+      const response = await conversationsApi.create(selectedProject.id, newThreadTitle);
+      setNewThreadTitle('');
+      setShowNewThread(false);
+      router.push(`/chat/${selectedProject.id}/${response.data.threadId}`);
+    } catch (error) {
+      console.error('Failed to create thread:', error);
+    }
+  };
+
+  const handleLogout = () => {
+    removeToken();
+    router.push('/login');
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-screen bg-gray-50">
+      {/* Sidebar - Projects */}
+      <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
+        <div className="p-4 border-b border-gray-200">
+          <h1 className="text-xl font-bold">🤖 ChatAI</h1>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-semibold text-gray-600">Projects</h2>
+            <button
+              onClick={() => setShowNewProject(true)}
+              className="p-1 hover:bg-gray-100 rounded"
+            >
+              <Plus size={16} />
+            </button>
+          </div>
+
+          {showNewProject && (
+            <div className="mb-2 flex gap-1">
+              <input
+                type="text"
+                value={newProjectName}
+                onChange={(e) => setNewProjectName(e.target.value)}
+                placeholder="Project name"
+                className="flex-1 px-2 py-1 text-sm border rounded"
+                autoFocus
+                onKeyPress={(e) => e.key === 'Enter' && createProject()}
+              />
+              <button onClick={createProject} className="px-2 py-1 text-sm bg-blue-500 text-white rounded">
+                ✓
+              </button>
+            </div>
+          )}
+
+          {projects.map((project) => (
+            <button
+              key={project.id}
+              onClick={() => selectProject(project)}
+              className={`w-full text-left px-3 py-2 rounded mb-1 ${
+                selectedProject?.id === project.id
+                  ? 'bg-blue-50 text-blue-600'
+                  : 'hover:bg-gray-100'
+              }`}
+            >
+              <div className="font-medium text-sm">{project.name}</div>
+              <div className="text-xs text-gray-500">
+                {project._count.conversations} threads
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <div className="p-4 border-t border-gray-200">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded"
+          >
+            <LogOut size={16} />
+            Logout
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content - Threads */}
+      <div className="flex-1 flex flex-col">
+        {selectedProject ? (
+          <>
+            <div className="p-4 border-b border-gray-200 bg-white">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold">{selectedProject.name}</h2>
+                <button
+                  onClick={() => setShowNewThread(true)}
+                  className="flex items-center gap-2 px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                >
+                  <Plus size={16} />
+                  New Chat
+                </button>
+              </div>
+
+              {showNewThread && (
+                <div className="mt-2 flex gap-2">
+                  <input
+                    type="text"
+                    value={newThreadTitle}
+                    onChange={(e) => setNewThreadTitle(e.target.value)}
+                    placeholder="Thread title"
+                    className="flex-1 px-3 py-2 border rounded"
+                    autoFocus
+                    onKeyPress={(e) => e.key === 'Enter' && createThread()}
+                  />
+                  <button onClick={createThread} className="px-4 py-2 bg-blue-500 text-white rounded">
+                    Create
+                  </button>
+                  <button onClick={() => setShowNewThread(false)} className="px-4 py-2 border rounded">
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              {conversations.length === 0 ? (
+                <div className="text-center text-gray-500 mt-20">
+                  <MessageSquare size={48} className="mx-auto mb-4 opacity-50" />
+                  <p>No conversations yet</p>
+                  <p className="text-sm">Click "New Chat" to start</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {conversations.map((conv) => (
+                    <button
+                      key={conv.id}
+                      onClick={() => router.push(`/chat/${selectedProject.id}/${conv.threadId}`)}
+                      className="p-4 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow text-left"
+                    >
+                      <h3 className="font-medium mb-1">{conv.title}</h3>
+                      <p className="text-xs text-gray-500">
+                        {new Date(conv.updatedAt).toLocaleDateString()}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-gray-500">
+            Select a project or create a new one
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+## 📞 NEXT STEP
+
+**Phần 7 còn 2 files quan trọng nhất:**
+- `components/MessageList.tsx` (hiển thị messages)
+- `app/chat/[projectId]/[threadId]/page.tsx` (chat interface)
+
+**Reply để tiếp tục:**
+- **"Tiếp"** → Tôi gửi 2 files cuối của Phần 7
+- **"Test trước"** → Test login + projects trước
+
+**Chờ lệnh! 🚀**
