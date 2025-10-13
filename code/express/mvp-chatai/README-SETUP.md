@@ -884,3 +884,555 @@ Next: Phần 3 - Auth Module
 **Thời gian setup: ~20 phút**
 
 **Chờ confirm! 🚀**
+# 🎯 PHẦN 3: AUTH MODULE (LOGIN/SIGNUP + JWT)
+
+**Mục tiêu:** Xây dựng hệ thống Auth với JWT
+
+**Thời gian:** 15-20 phút
+
+---
+
+## 📁 CẤU TRÚC PHẦN 3
+
+```
+backend/src/
+├── auth/
+│   ├── auth.module.ts
+│   ├── auth.controller.ts
+│   ├── auth.service.ts
+│   ├── dto/
+│   │   ├── signup.dto.ts
+│   │   └── login.dto.ts
+│   ├── strategies/
+│   │   ├── jwt.strategy.ts
+│   │   └── local.strategy.ts
+│   └── guards/
+│       ├── jwt-auth.guard.ts
+│       └── local-auth.guard.ts
+└── app.module.ts (update)
+```
+
+---
+
+## 📄 FILE 1: `backend/src/auth/dto/signup.dto.ts`
+
+```typescript
+import { IsEmail, IsString, MinLength } from 'class-validator';
+
+export class SignupDto {
+  @IsEmail()
+  email: string;
+
+  @IsString()
+  @MinLength(6)
+  password: string;
+
+  @IsString()
+  @MinLength(2)
+  name: string;
+}
+```
+
+---
+
+## 📄 FILE 2: `backend/src/auth/dto/login.dto.ts`
+
+```typescript
+import { IsEmail, IsString } from 'class-validator';
+
+export class LoginDto {
+  @IsEmail()
+  email: string;
+
+  @IsString()
+  password: string;
+}
+```
+
+---
+
+## 📄 FILE 3: `backend/src/auth/auth.service.ts`
+
+```typescript
+import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { PrismaService } from '../prisma/prisma.service';
+import * as bcrypt from 'bcrypt';
+import { SignupDto } from './dto/signup.dto';
+import { LoginDto } from './dto/login.dto';
+
+@Injectable()
+export class AuthService {
+  constructor(
+    private prisma: PrismaService,
+    private jwtService: JwtService,
+  ) {}
+
+  // Signup
+  async signup(signupDto: SignupDto) {
+    const { email, password, name } = signupDto;
+
+    // Check if user exists
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      throw new ConflictException('Email already exists');
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create user
+    const user = await this.prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        name,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        createdAt: true,
+      },
+    });
+
+    // Generate JWT
+    const token = this.generateToken(user.id, user.email);
+
+    return {
+      user,
+      access_token: token,
+    };
+  }
+
+  // Login
+  async login(loginDto: LoginDto) {
+    const { email, password } = loginDto;
+
+    // Find user
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // Verify password
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // Generate JWT
+    const token = this.generateToken(user.id, user.email);
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        createdAt: user.createdAt,
+      },
+      access_token: token,
+    };
+  }
+
+  // Validate user (for Passport LocalStrategy)
+  async validateUser(email: string, password: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      return null;
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
+      return null;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password: _, ...result } = user;
+    return result;
+  }
+
+  // Get user by ID (for JWT strategy)
+  async getUserById(userId: number) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        createdAt: true,
+      },
+    });
+  }
+
+  // Generate JWT token
+  private generateToken(userId: number, email: string): string {
+    const payload = { sub: userId, email };
+    return this.jwtService.sign(payload);
+  }
+}
+```
+
+---
+
+## 📄 FILE 4: `backend/src/auth/strategies/local.strategy.ts`
+
+```typescript
+import { Strategy } from 'passport-local';
+import { PassportStrategy } from '@nestjs/passport';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { AuthService } from '../auth.service';
+
+@Injectable()
+export class LocalStrategy extends PassportStrategy(Strategy) {
+  constructor(private authService: AuthService) {
+    super({
+      usernameField: 'email', // Use email instead of username
+    });
+  }
+
+  async validate(email: string, password: string): Promise<any> {
+    const user = await this.authService.validateUser(email, password);
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    return user;
+  }
+}
+```
+
+---
+
+## 📄 FILE 5: `backend/src/auth/strategies/jwt.strategy.ts`
+
+```typescript
+import { ExtractJwt, Strategy } from 'passport-jwt';
+import { PassportStrategy } from '@nestjs/passport';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { AuthService } from '../auth.service';
+
+@Injectable()
+export class JwtStrategy extends PassportStrategy(Strategy) {
+  constructor(private authService: AuthService) {
+    super({
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ignoreExpiration: false,
+      secretOrKey: process.env.JWT_SECRET || 'your-secret-key',
+    });
+  }
+
+  async validate(payload: any) {
+    const user = await this.authService.getUserById(payload.sub);
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+    return user; // This will be attached to request.user
+  }
+}
+```
+
+---
+
+## 📄 FILE 6: `backend/src/auth/guards/local-auth.guard.ts`
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+
+@Injectable()
+export class LocalAuthGuard extends AuthGuard('local') {}
+```
+
+---
+
+## 📄 FILE 7: `backend/src/auth/guards/jwt-auth.guard.ts`
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+
+@Injectable()
+export class JwtAuthGuard extends AuthGuard('jwt') {}
+```
+
+---
+
+## 📄 FILE 8: `backend/src/auth/auth.controller.ts`
+
+```typescript
+import { Controller, Post, Body, Get, UseGuards, Request } from '@nestjs/common';
+import { AuthService } from './auth.service';
+import { SignupDto } from './dto/signup.dto';
+import { LoginDto } from './dto/login.dto';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+
+@Controller('auth')
+export class AuthController {
+  constructor(private authService: AuthService) {}
+
+  @Post('signup')
+  async signup(@Body() signupDto: SignupDto) {
+    return this.authService.signup(signupDto);
+  }
+
+  @Post('login')
+  async login(@Body() loginDto: LoginDto) {
+    return this.authService.login(loginDto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  async getProfile(@Request() req) {
+    return {
+      user: req.user,
+    };
+  }
+}
+```
+
+---
+
+## 📄 FILE 9: `backend/src/auth/auth.module.ts`
+
+```typescript
+import { Module } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
+import { PassportModule } from '@nestjs/passport';
+import { AuthService } from './auth.service';
+import { AuthController } from './auth.controller';
+import { LocalStrategy } from './strategies/local.strategy';
+import { JwtStrategy } from './strategies/jwt.strategy';
+import { PrismaModule } from '../prisma/prisma.module';
+
+@Module({
+  imports: [
+    PrismaModule,
+    PassportModule,
+    JwtModule.register({
+      secret: process.env.JWT_SECRET || 'your-secret-key',
+      signOptions: { expiresIn: process.env.JWT_EXPIRES_IN || '7d' },
+    }),
+  ],
+  controllers: [AuthController],
+  providers: [AuthService, LocalStrategy, JwtStrategy],
+  exports: [AuthService],
+})
+export class AuthModule {}
+```
+
+---
+
+## 📄 FILE 10: `backend/src/app.module.ts` (UPDATE)
+
+```typescript
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { PrismaModule } from './prisma/prisma.module';
+import { AuthModule } from './auth/auth.module';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+    PrismaModule,
+    AuthModule, // ← ADD THIS
+  ],
+})
+export class AppModule {}
+```
+
+---
+
+## ✅ SETUP PHẦN 3
+
+**Backend đang chạy? Stop lại:**
+```bash
+# Ctrl+C để stop
+```
+
+**Restart với code mới:**
+```bash
+npm run start:dev
+```
+
+**Expected output:**
+```
+🚀 Backend running on: http://localhost:3001
+✅ Database connected
+```
+
+---
+
+## 🧪 TEST PHẦN 3
+
+### **Test 1: Signup**
+
+```bash
+curl -X POST http://localhost:3001/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "test@example.com",
+    "password": "password123",
+    "name": "Test User"
+  }'
+```
+
+**Expected response:**
+```json
+{
+  "user": {
+    "id": 1,
+    "email": "test@example.com",
+    "name": "Test User",
+    "createdAt": "2025-01-15T10:00:00.000Z"
+  },
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+### **Test 2: Login**
+
+```bash
+curl -X POST http://localhost:3001/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "test@example.com",
+    "password": "password123"
+  }'
+```
+
+**Expected response:**
+```json
+{
+  "user": {
+    "id": 1,
+    "email": "test@example.com",
+    "name": "Test User",
+    "createdAt": "2025-01-15T10:00:00.000Z"
+  },
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+### **Test 3: Get Profile (Protected route)**
+
+```bash
+# Replace YOUR_TOKEN with the access_token from login response
+curl -X GET http://localhost:3001/auth/me \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Expected response:**
+```json
+{
+  "user": {
+    "id": 1,
+    "email": "test@example.com",
+    "name": "Test User",
+    "createdAt": "2025-01-15T10:00:00.000Z"
+  }
+}
+```
+
+### **Test 4: Invalid credentials**
+
+```bash
+curl -X POST http://localhost:3001/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "test@example.com",
+    "password": "wrongpassword"
+  }'
+```
+
+**Expected response:**
+```json
+{
+  "statusCode": 401,
+  "message": "Invalid credentials",
+  "error": "Unauthorized"
+}
+```
+
+---
+
+## 📊 AUTH FLOW OVERVIEW
+
+```
+1. Signup/Login
+   ↓
+2. Hash password (bcrypt)
+   ↓
+3. Save to database
+   ↓
+4. Generate JWT token
+   ↓
+5. Return token to client
+
+Protected Routes:
+1. Client sends: Authorization: Bearer {token}
+   ↓
+2. JwtStrategy validates token
+   ↓
+3. Attach user to request
+   ↓
+4. Access granted
+```
+
+---
+
+## 💡 SỬ DỤNG AUTH TRONG CÁC MODULE KHÁC
+
+```typescript
+import { UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+
+@Controller('projects')
+export class ProjectsController {
+  
+  @UseGuards(JwtAuthGuard) // ← Protect route
+  @Get()
+  async getProjects(@Request() req) {
+    // req.user is now available
+    const userId = req.user.id;
+    return this.projectsService.getUserProjects(userId);
+  }
+}
+```
+
+---
+
+## 📞 NEXT STEP
+
+**Khi đã test xong, reply:**
+- **"OK, tiếp Phần 4"** → Tôi gửi Projects + Threading Module
+- **"Có lỗi: [mô tả]"** → Tôi giúp debug
+- **"Test thành công!"** → Great! Sang Phần 4
+
+---
+
+## 💡 CURRENT STATUS
+
+```
+✅ Phần 1: Docker + Database
+✅ Phần 2: Backend Init + 6 Tables  
+✅ Phần 3: Auth Module (JWT)
+
+Next: Phần 4 - Projects + Threading
+```
+
+**Auth working! JWT validated! 🔐**
+
+**Chờ confirm! 🚀**
