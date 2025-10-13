@@ -6,6 +6,7 @@ import { ProjectsModule } from './projects/projects.module';
 import { ConversationsModule } from './conversations/conversations.module';
 import { ChatModule } from './chat/chat.module';
 import { WebsocketModule } from './websocket/websocket.module';
+import { FilesModule } from './files/files.module'; // ← ADD
 
 @Module({
   imports: [
@@ -17,7 +18,8 @@ import { WebsocketModule } from './websocket/websocket.module';
     ProjectsModule,
     ConversationsModule,
     ChatModule,
-    WebsocketModule, // ← ADD
+    WebsocketModule,
+    FilesModule, // ← ADD
   ],
 })
 export class AppModule {}
