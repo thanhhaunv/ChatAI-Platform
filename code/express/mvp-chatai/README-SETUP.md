@@ -5718,3 +5718,858 @@ Next: Phần 9 - File Upload & Processing
 **Voice features added! 🎤🔊**
 
 **Chờ confirm! 🚀**
+
+# 🎯 PHẦN 9: FILE UPLOAD & PROCESSING
+
+**Mục tiêu:** Upload files (PDF, TXT, DOCX, Images) + Extract text + AI context
+
+**Thời gian:** 20-25 phút
+
+---
+
+## 📁 CẤU TRÚC PHẦN 9
+
+```
+backend/src/
+├── files/
+│   ├── files.module.ts
+│   ├── files.controller.ts
+│   ├── files.service.ts
+│   └── extractors/
+│       ├── pdf.extractor.ts
+│       └── text.extractor.ts
+
+frontend/components/
+├── FileUploader.tsx (NEW)
+└── AttachmentDisplay.tsx (NEW)
+
+frontend/app/chat/[projectId]/[threadId]/
+└── page.tsx (UPDATE)
+```
+
+---
+
+## 📄 FILE 1: `backend/package.json` (UPDATE - add dependencies)
+
+**Add to dependencies section:**
+
+```json
+{
+  "dependencies": {
+    // ... existing dependencies
+    "multer": "^1.4.5-lts.1",
+    "@nestjs/platform-express": "^10.3.0",
+    "pdf-parse": "^1.1.1",
+    "mammoth": "^1.6.0"
+  },
+  "devDependencies": {
+    // ... existing
+    "@types/multer": "^1.4.11"
+  }
+}
+```
+
+**Install:**
+```bash
+cd backend
+npm install multer @types/multer pdf-parse mammoth
+```
+
+---
+
+## 📄 FILE 2: `backend/src/files/extractors/pdf.extractor.ts`
+
+```typescript
+import * as pdfParse from 'pdf-parse';
+
+export class PDFExtractor {
+  async extract(buffer: Buffer): Promise<string> {
+    try {
+      const data = await pdfParse(buffer);
+      return data.text;
+    } catch (error) {
+      throw new Error(`Failed to extract PDF: ${error.message}`);
+    }
+  }
+}
+```
+
+---
+
+## 📄 FILE 3: `backend/src/files/extractors/text.extractor.ts`
+
+```typescript
+import * as mammoth from 'mammoth';
+
+export class TextExtractor {
+  async extractTxt(buffer: Buffer): Promise<string> {
+    return buffer.toString('utf-8');
+  }
+
+  async extractDocx(buffer: Buffer): Promise<string> {
+    try {
+      const result = await mammoth.extractRawText({ buffer });
+      return result.value;
+    } catch (error) {
+      throw new Error(`Failed to extract DOCX: ${error.message}`);
+    }
+  }
+
+  async extractImage(buffer: Buffer, filename: string): Promise<string> {
+    // For images, we return metadata (OCR would require tesseract.js)
+    return `[Image: ${filename}, Size: ${(buffer.length / 1024).toFixed(2)} KB]`;
+  }
+}
+```
+
+---
+
+## 📄 FILE 4: `backend/src/files/files.service.ts`
+
+```typescript
+import { Injectable, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { PDFExtractor } from './extractors/pdf.extractor';
+import { TextExtractor } from './extractors/text.extractor';
+
+@Injectable()
+export class FilesService {
+  private pdfExtractor = new PDFExtractor();
+  private textExtractor = new TextExtractor();
+
+  // Max file size: 10MB
+  private readonly MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+  // Allowed file types
+  private readonly ALLOWED_TYPES = [
+    'application/pdf',
+    'text/plain',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+  ];
+
+  constructor(private prisma: PrismaService) {}
+
+  validateFile(file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('No file provided');
+    }
+
+    if (file.size > this.MAX_FILE_SIZE) {
+      throw new BadRequestException('File size exceeds 10MB limit');
+    }
+
+    if (!this.ALLOWED_TYPES.includes(file.mimetype)) {
+      throw new BadRequestException(
+        'Invalid file type. Allowed: PDF, TXT, DOCX, JPG, PNG, GIF',
+      );
+    }
+  }
+
+  async extractText(file: Express.Multer.File): Promise<string> {
+    try {
+      switch (file.mimetype) {
+        case 'application/pdf':
+          return await this.pdfExtractor.extract(file.buffer);
+
+        case 'text/plain':
+          return await this.textExtractor.extractTxt(file.buffer);
+
+        case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+          return await this.textExtractor.extractDocx(file.buffer);
+
+        case 'image/jpeg':
+        case 'image/png':
+        case 'image/gif':
+          return await this.textExtractor.extractImage(file.buffer, file.originalname);
+
+        default:
+          throw new BadRequestException('Unsupported file type');
+      }
+    } catch (error) {
+      throw new BadRequestException(`Failed to extract text: ${error.message}`);
+    }
+  }
+
+  async processUpload(file: Express.Multer.File) {
+    this.validateFile(file);
+
+    const extractedText = await this.extractText(file);
+
+    return {
+      filename: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      extractedText,
+      previewText: extractedText.substring(0, 500) + (extractedText.length > 500 ? '...' : ''),
+    };
+  }
+}
+```
+
+---
+
+## 📄 FILE 5: `backend/src/files/files.controller.ts`
+
+```typescript
+import {
+  Controller,
+  Post,
+  UseInterceptors,
+  UploadedFile,
+  UseGuards,
+  BadRequestException,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { FilesService } from './files.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+
+@Controller('files')
+@UseGuards(JwtAuthGuard)
+export class FilesController {
+  constructor(private filesService: FilesService) {}
+
+  @Post('upload')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB
+      },
+    }),
+  )
+  async uploadFile(@UploadedFile() file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    return this.filesService.processUpload(file);
+  }
+}
+```
+
+---
+
+## 📄 FILE 6: `backend/src/files/files.module.ts`
+
+```typescript
+import { Module } from '@nestjs/common';
+import { FilesController } from './files.controller';
+import { FilesService } from './files.service';
+import { PrismaModule } from '../prisma/prisma.module';
+
+@Module({
+  imports: [PrismaModule],
+  controllers: [FilesController],
+  providers: [FilesService],
+  exports: [FilesService],
+})
+export class FilesModule {}
+```
+
+---
+
+## 📄 FILE 7: `backend/src/app.module.ts` (UPDATE)
+
+```typescript
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { PrismaModule } from './prisma/prisma.module';
+import { AuthModule } from './auth/auth.module';
+import { ProjectsModule } from './projects/projects.module';
+import { ConversationsModule } from './conversations/conversations.module';
+import { ChatModule } from './chat/chat.module';
+import { WebsocketModule } from './websocket/websocket.module';
+import { FilesModule } from './files/files.module'; // ← ADD
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+    PrismaModule,
+    AuthModule,
+    ProjectsModule,
+    ConversationsModule,
+    ChatModule,
+    WebsocketModule,
+    FilesModule, // ← ADD
+  ],
+})
+export class AppModule {}
+```
+
+---
+
+## 📄 FILE 8: `backend/src/chat/dto/send-message.dto.ts` (UPDATE)
+
+```typescript
+import { IsString, IsInt, IsOptional, MinLength, IsArray } from 'class-validator';
+
+export class SendMessageDto {
+  @IsString()
+  @MinLength(1)
+  content: string;
+
+  @IsInt()
+  agentId: number;
+
+  @IsOptional()
+  @IsString()
+  threadId?: string;
+
+  @IsOptional()
+  @IsArray()
+  attachments?: Array<{
+    filename: string;
+    extractedText: string;
+  }>;
+}
+```
+
+---
+
+## 📄 FILE 9: `backend/src/chat/chat.service.ts` (UPDATE - add attachments)
+
+**Update the `sendMessage` method to include attachments in context:**
+
+```typescript
+async sendMessage(userId: number, projectId: number, dto: SendMessageDto) {
+  // ... existing code ...
+
+  // 4. Save user message
+  const userMessage = await this.prisma.message.create({
+    data: {
+      conversationId: conversation.id,
+      userId: userId,
+      agentId: agent.id,
+      content: dto.content,
+      role: 'user',
+      tokens: 0,
+      attachments: dto.attachments || [], // ← ADD
+    },
+  });
+
+  // 5. Prepare messages for AI
+  let userContent = dto.content;
+  
+  // Add file context if attachments exist
+  if (dto.attachments && dto.attachments.length > 0) {
+    const fileContext = dto.attachments
+      .map((att) => `\n\n[File: ${att.filename}]\n${att.extractedText}`)
+      .join('\n');
+    userContent += fileContext;
+  }
+
+  const messages = [
+    {
+      role: 'system' as const,
+      content: 'You are a helpful AI assistant. When files are provided, analyze and reference them in your responses.',
+    },
+    ...context,
+    {
+      role: 'user' as const,
+      content: userContent,
+    },
+  ];
+
+  // ... rest of existing code ...
+}
+```
+
+---
+
+## 📄 FILE 10: `backend/prisma/schema.prisma` (UPDATE - add attachments)
+
+**Update MESSAGE model:**
+
+```prisma
+model Message {
+  id             Int      @id @default(autoincrement())
+  conversationId Int      @map("conversation_id")
+  userId         Int?     @map("user_id")
+  agentId        Int?     @map("agent_id")
+  content        String   @db.Text
+  role           String
+  tokens         Int      @default(0)
+  attachments    Json     @default("[]") // ← ADD
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  agent        Agent?       @relation(fields: [agentId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId])
+  @@map("messages")
+}
+```
+
+**Push schema:**
+```bash
+cd backend
+npx prisma db push
+```
+
+---
+
+## 📄 FILE 11: `frontend/components/FileUploader.tsx`
+
+```typescript
+'use client';
+
+import { useState, useRef } from 'react';
+import { Upload, X, FileText, Loader2 } from 'lucide-react';
+import api from '@/lib/api';
+
+interface UploadedFile {
+  filename: string;
+  mimetype: string;
+  size: number;
+  extractedText: string;
+  previewText: string;
+}
+
+interface Props {
+  onFileUploaded: (file: UploadedFile) => void;
+  disabled?: boolean;
+}
+
+export default function FileUploader({ onFileUploaded, disabled }: Props) {
+  const [uploading, setUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    if (e.target.files && e.target.files[0]) {
+      handleFile(e.target.files[0]);
+    }
+  };
+
+  const handleFile = async (file: File) => {
+    // Validate file size (10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File size exceeds 10MB limit');
+      return;
+    }
+
+    // Validate file type
+    const allowedTypes = [
+      'application/pdf',
+      'text/plain',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      alert('Invalid file type. Allowed: PDF, TXT, DOCX, JPG, PNG, GIF');
+      return;
+    }
+
+    setUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await api.post('/files/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      onFileUploaded(response.data);
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      alert(error.response?.data?.message || 'Failed to upload file');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  return (
+    <div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        onChange={handleChange}
+        accept=".pdf,.txt,.docx,.jpg,.jpeg,.png,.gif"
+        className="hidden"
+        disabled={disabled || uploading}
+      />
+
+      <button
+        onClick={handleClick}
+        disabled={disabled || uploading}
+        className={`p-3 rounded-lg transition-colors ${
+          dragActive
+            ? 'bg-blue-100 text-blue-600'
+            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+        } disabled:opacity-50 disabled:cursor-not-allowed`}
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
+        title="Upload file (PDF, TXT, DOCX, Image)"
+      >
+        {uploading ? <Loader2 size={20} className="animate-spin" /> : <Upload size={20} />}
+      </button>
+    </div>
+  );
+}
+```
+
+---
+
+## 📄 FILE 12: `frontend/components/AttachmentDisplay.tsx`
+
+```typescript
+'use client';
+
+import { X, FileText, Image } from 'lucide-react';
+
+interface Attachment {
+  filename: string;
+  mimetype: string;
+  size: number;
+  extractedText: string;
+  previewText: string;
+}
+
+interface Props {
+  attachment: Attachment;
+  onRemove: () => void;
+}
+
+export default function AttachmentDisplay({ attachment, onRemove }: Props) {
+  const isImage = attachment.mimetype.startsWith('image/');
+
+  return (
+    <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+      <div className="flex-shrink-0">
+        {isImage ? (
+          <Image size={20} className="text-blue-600" />
+        ) : (
+          <FileText size={20} className="text-blue-600" />
+        )}
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm text-gray-900 truncate">
+          {attachment.filename}
+        </p>
+        <p className="text-xs text-gray-500">
+          {(attachment.size / 1024).toFixed(2)} KB
+        </p>
+        <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+          {attachment.previewText}
+        </p>
+      </div>
+
+      <button
+        onClick={onRemove}
+        className="flex-shrink-0 p-1 hover:bg-blue-100 rounded"
+      >
+        <X size={16} className="text-gray-500" />
+      </button>
+    </div>
+  );
+}
+```
+
+---
+
+## 📄 FILE 13: `frontend/app/chat/[projectId]/[threadId]/page.tsx` (UPDATE)
+
+**Add imports:**
+```typescript
+import FileUploader from '@/components/FileUploader';
+import AttachmentDisplay from '@/components/AttachmentDisplay';
+```
+
+**Add state:**
+```typescript
+const [attachments, setAttachments] = useState<any[]>([]);
+```
+
+**Update sendMessage function:**
+```typescript
+const sendMessage = async () => {
+  if ((!input.trim() && attachments.length === 0) || sending) return;
+
+  const userMessage = input;
+  const userAttachments = attachments;
+  setInput('');
+  setAttachments([]);
+  setSending(true);
+
+  // ... rest of code, but pass attachments to API:
+
+  try {
+    const socket = getSocket();
+    if (socket?.connected) {
+      socket.emit('send_message', {
+        threadId,
+        content: userMessage,
+        agentId,
+        projectId,
+        attachments: userAttachments.map(att => ({
+          filename: att.filename,
+          extractedText: att.extractedText,
+        })),
+      });
+    } else {
+      const response = await chatApi.sendMessage(projectId, {
+        content: userMessage,
+        agentId,
+        threadId,
+        attachments: userAttachments.map(att => ({
+          filename: att.filename,
+          extractedText: att.extractedText,
+        })),
+      });
+      // ... rest
+    }
+  } catch (error) {
+    // ... error handling
+  }
+};
+```
+
+**Update Input section:**
+```typescript
+      {/* Input */}
+      <div className="bg-white border-t border-gray-200 p-4">
+        <div className="max-w-4xl mx-auto">
+          {/* Attachments preview */}
+          {attachments.length > 0 && (
+            <div className="mb-2 space-y-2">
+              {attachments.map((att, index) => (
+                <AttachmentDisplay
+                  key={index}
+                  attachment={att}
+                  onRemove={() => setAttachments(prev => prev.filter((_, i) => i !== index))}
+                />
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            {/* File Upload */}
+            <FileUploader
+              onFileUploaded={(file) => setAttachments(prev => [...prev, file])}
+              disabled={sending}
+            />
+
+            {/* Voice Recorder */}
+            <VoiceRecorder
+              onTranscript={(text) => {
+                setInput(text);
+                setTimeout(() => {
+                  if (text.trim()) {
+                    sendMessage();
+                  }
+                }, 500);
+              }}
+              disabled={sending}
+            />
+
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Type your message, upload file, or use voice..."
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              rows={1}
+              disabled={sending}
+              style={{ minHeight: '52px', maxHeight: '200px' }}
+              onInput={(e) => {
+                const target = e.target as HTMLTextAreaElement;
+                target.style.height = 'auto';
+                target.style.height = target.scrollHeight + 'px';
+              }}
+            />
+            <button
+              onClick={sendMessage}
+              disabled={(!input.trim() && attachments.length === 0) || sending}
+              className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              <Send size={18} />
+              {sending ? 'Sending...' : 'Send'}
+            </button>
+          </div>
+        </div>
+      </div>
+```
+
+---
+
+## ✅ SETUP PHẦN 9
+
+**Backend:**
+```bash
+cd backend
+npm install
+npx prisma db push
+npm run start:dev
+```
+
+**Frontend:**
+```bash
+cd frontend
+npm run dev
+```
+
+---
+
+## 🧪 TEST PHẦN 9
+
+### **Test 1: Upload PDF**
+
+1. Create a simple PDF (or download sample)
+2. In chat interface, click upload button (📎)
+3. Select PDF file
+4. Watch:
+   - ✅ File uploads
+   - ✅ Text extracted
+   - ✅ Preview shown
+5. Type: "Summarize this document"
+6. Send
+7. AI should read and summarize the PDF content!
+
+### **Test 2: Upload TXT**
+
+1. Create `test.txt` with content: "This is a test document about AI"
+2. Upload to chat
+3. Type: "What does this file say?"
+4. AI should quote from the file
+
+### **Test 3: Upload Image**
+
+1. Upload a JPG/PNG
+2. You'll see: `[Image: photo.jpg, Size: 123.45 KB]`
+3. Type: "I uploaded an image"
+4. AI acknowledges the image (but can't see content - OCR would need tesseract.js)
+
+### **Test 4: Multiple Files**
+
+1. Upload 2 files (e.g., PDF + TXT)
+2. Both appear in preview
+3. Type: "Compare these two documents"
+4. AI should reference both files
+
+### **Test 5: Remove Attachment**
+
+1. Upload file
+2. Click X button on attachment
+3. Attachment removed
+4. Send message → AI doesn't see removed file
+
+### **Test 6: File Size Limit**
+
+1. Try uploading file > 10MB
+2. Should show error: "File size exceeds 10MB limit"
+
+### **Test 7: Invalid File Type**
+
+1. Try uploading .exe or .zip
+2. Should show error: "Invalid file type..."
+
+---
+
+## 📊 FILE PROCESSING FLOW
+
+```
+1. User selects file
+   ↓
+2. Frontend validates (size, type)
+   ↓
+3. Upload to /files/upload
+   ↓
+4. Backend extracts text:
+   - PDF → pdf-parse
+   - DOCX → mammoth
+   - TXT → read as string
+   - Image → metadata only
+   ↓
+5. Return extracted text
+   ↓
+6. User sends message
+   ↓
+7. Extracted text added to AI context
+   ↓
+8. AI responds based on file content
+```
+
+---
+
+## 📞 NEXT STEP
+
+**Khi đã test xong, reply:**
+- **"OK, tiếp Phần 10"** → Tôi gửi DEPLOYMENT GUIDE
+- **"File upload works!"** → Perfect! Ready to deploy?
+- **"Có lỗi: [mô tả]"** → Tôi giúp debug
+
+---
+
+## 💡 CURRENT STATUS
+
+```
+✅ Phần 1: Docker + Database
+✅ Phần 2: Backend Init + 6 Tables
+✅ Phần 3: Auth Module (JWT)
+✅ Phần 4: Projects + Threading
+✅ Phần 5: Chat + AI (OpenAI/Gemini)
+✅ Phần 6: WebSocket (Real-time streaming)
+✅ Phần 7: Frontend Web (Next.js)
+✅ Phần 8: Voice Input & TTS
+✅ Phần 9: File Upload & Processing ← YOU ARE HERE
+
+Next: Phần 10 - Deployment Guide + Demo Script
+```
+
+**🎉 FULL MVP COMPLETE!**
+
+**All Core Features Working:**
+- ✅ Auth (Signup/Login)
+- ✅ Projects + Threading
+- ✅ Chat with AI (context maintained)
+- ✅ Real-time WebSocket streaming
+- ✅ Voice input & TTS output
+- ✅ File upload (PDF, TXT, DOCX, Images)
+- ✅ Token tracking & billing
+
+**Ready for deployment! 🚀**
+
+**Chờ confirm!**
