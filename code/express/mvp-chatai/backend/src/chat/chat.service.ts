@@ -47,19 +47,30 @@ export class ChatService {
         content: dto.content,
         role: 'user',
         tokens: 0,
+        attachments: dto.attachments || [], // ← ADD
       },
     });
 
     // 5. Prepare messages for AI
+    let userContent = dto.content;
+
+    // Add file context if attachments exist
+    if (dto.attachments && dto.attachments.length > 0) {
+      const fileContext = dto.attachments
+        .map((att) => `\n\n[File: ${att.filename}]\n${att.extractedText}`)
+        .join('\n');
+      userContent += fileContext;
+    }
+    
     const messages = [
       {
         role: 'system' as const,
-        content: 'You are a helpful AI assistant.',
+        content: 'You are a helpful AI assistant. When files are provided, analyze and reference them in your responses.',
       },
       ...context,
       {
         role: 'user' as const,
-        content: dto.content,
+        content: userContent,
       },
     ];
 
