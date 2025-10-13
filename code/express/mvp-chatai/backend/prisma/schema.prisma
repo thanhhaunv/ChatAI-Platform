@@ -1,0 +1,114 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// USER MODEL
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  ownedProjects  Project[]        @relation("ProjectOwner")
+  projectMembers ProjectMember[]
+  messages       Message[]
+
+  @@map("users")
+}
+
+// PROJECT MODEL
+model Project {
+  id        Int      @id @default(autoincrement())
+  name      String
+  ownerId   Int      @map("owner_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  owner         User            @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members       ProjectMember[]
+  conversations Conversation[]
+
+  @@map("projects")
+}
+
+// PROJECT MEMBER MODEL (for RBAC)
+model ProjectMember {
+  id        Int      @id @default(autoincrement())
+  projectId Int      @map("project_id")
+  userId    Int      @map("user_id")
+  role      String   @default("member") // owner, editor, viewer
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@map("project_members")
+}
+
+// CONVERSATION MODEL (Threading!)
+model Conversation {
+  id        Int      @id @default(autoincrement())
+  projectId Int      @map("project_id")
+  threadId  String   @unique @map("thread_id") @default(uuid()) // UUID for threading
+  title     String   @default("New Conversation")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@index([projectId])
+  @@index([threadId])
+  @@map("conversations")
+}
+
+// MESSAGE MODEL
+model Message {
+  id             Int      @id @default(autoincrement())
+  conversationId Int      @map("conversation_id")
+  userId         Int?     @map("user_id")
+  agentId        Int?     @map("agent_id")
+  content        String   @db.Text
+  role           String   // user, assistant, system
+  tokens         Int      @default(0)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  agent        Agent?       @relation(fields: [agentId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId])
+  @@map("messages")
+}
+
+// AGENT MODEL
+model Agent {
+  id        Int      @id @default(autoincrement())
+  name      String
+  type      String   // openai, gemini, custom
+  apiKey    String?  @map("api_key") @db.Text // Encrypted in production
+  model     String   @default("gpt-4")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  messages Message[]
+
+  @@map("agents")
+}
