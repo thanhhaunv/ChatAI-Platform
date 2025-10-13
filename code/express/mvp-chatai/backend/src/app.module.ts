@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module';
 import { ProjectsModule } from './projects/projects.module';
 import { ConversationsModule } from './conversations/conversations.module';
 import { ChatModule } from './chat/chat.module';
+import { WebsocketModule } from './websocket/websocket.module';
 
 @Module({
   imports: [
@@ -15,7 +16,8 @@ import { ChatModule } from './chat/chat.module';
     AuthModule,
     ProjectsModule,
     ConversationsModule,
-    ChatModule, // ← ADD
+    ChatModule,
+    WebsocketModule, // ← ADD
   ],
 })
 export class AppModule {}
