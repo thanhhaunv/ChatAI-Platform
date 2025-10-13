@@ -5,6 +5,9 @@ import { useRouter, useParams } from 'next/navigation';
 import { chatApi } from '@/lib/api';
 import { connectSocket, getSocket } from '@/lib/socket';
 import MessageList from '@/components/MessageList';
+import VoiceRecorder from '@/components/VoiceRecorder';
+import FileUploader from '@/components/FileUploader';
+import AttachmentDisplay from '@/components/AttachmentDisplay';
 import { Send, ArrowLeft, DollarSign } from 'lucide-react';
 
 interface Message {
@@ -23,6 +26,14 @@ interface Conversation {
   title: string;
 }
 
+interface UploadedFile {
+  filename: string;
+  mimetype: string;
+  size: number;
+  extractedText: string;
+  previewText: string;
+}
+
 export default function ChatPage() {
   const params = useParams();
   const router = useRouter();
@@ -36,6 +47,7 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [agentId] = useState(1); // Default to GPT-4
+  const [attachments, setAttachments] = useState<UploadedFile[]>([]);
   const [usage, setUsage] = useState({ totalTokens: 0, estimatedCost: 0 });
 
   const socketRef = useRef<any>(null);
@@ -114,10 +126,12 @@ export default function ChatPage() {
   };
 
   const sendMessage = async () => {
-    if (!input.trim() || sending) return;
+    if ((!input.trim() && attachments.length === 0) || sending) return;
 
     const userMessage = input;
+    const userAttachments = attachments;
     setInput('');
+    setAttachments([]);
     setSending(true);
 
     // Add user message optimistically
@@ -138,6 +152,10 @@ export default function ChatPage() {
           content: userMessage,
           agentId,
           projectId,
+          attachments: userAttachments.map((att) => ({
+            filename: att.filename,
+            extractedText: att.extractedText,
+          })),
         });
       } else {
         // Fallback to REST API
@@ -145,6 +163,10 @@ export default function ChatPage() {
           content: userMessage,
           agentId,
           threadId,
+          attachments: userAttachments.map((att) => ({
+            filename: att.filename,
+            extractedText: att.extractedText,
+          })),
         });
         setMessages((prev) => [
           ...prev.filter((m) => m.id !== tempMessage.id),
@@ -198,9 +220,7 @@ export default function ChatPage() {
             <DollarSign size={16} />
             <span>{usage.totalTokens.toLocaleString()} tokens</span>
           </div>
-          <div className="text-gray-500">
-            ${usage.estimatedCost.toFixed(4)}
-          </div>
+          <div className="text-gray-500">${usage.estimatedCost.toFixed(4)}</div>
         </div>
       </div>
 
@@ -209,30 +229,64 @@ export default function ChatPage() {
 
       {/* Input */}
       <div className="bg-white border-t border-gray-200 p-4">
-        <div className="max-w-4xl mx-auto flex gap-2">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Type your message... (Press Enter to send, Shift+Enter for new line)"
-            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-            rows={1}
-            disabled={sending}
-            style={{ minHeight: '52px', maxHeight: '200px' }}
-            onInput={(e) => {
-              const target = e.target as HTMLTextAreaElement;
-              target.style.height = 'auto';
-              target.style.height = target.scrollHeight + 'px';
-            }}
-          />
-          <button
-            onClick={sendMessage}
-            disabled={!input.trim() || sending}
-            className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            <Send size={18} />
-            {sending ? 'Sending...' : 'Send'}
-          </button>
+        <div className="max-w-4xl mx-auto">
+          {/* Attachments preview */}
+          {attachments.length > 0 && (
+            <div className="mb-2 space-y-2">
+              {attachments.map((att, index) => (
+                <AttachmentDisplay
+                  key={index}
+                  attachment={att}
+                  onRemove={() => setAttachments((prev) => prev.filter((_, i) => i !== index))}
+                />
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            {/* File Upload */}
+            <FileUploader
+              onFileUploaded={(file) => setAttachments((prev) => [...prev, file])}
+              disabled={sending}
+            />
+
+            {/* Voice Recorder */}
+            <VoiceRecorder
+              onTranscript={(text) => {
+                setInput(text);
+                setTimeout(() => {
+                  if (text.trim()) {
+                    sendMessage();
+                  }
+                }, 500);
+              }}
+              disabled={sending}
+            />
+
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Type your message, upload file, or use voice..."
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              rows={1}
+              disabled={sending}
+              style={{ minHeight: '52px', maxHeight: '200px' }}
+              onInput={(e) => {
+                const target = e.target as HTMLTextAreaElement;
+                target.style.height = 'auto';
+                target.style.height = target.scrollHeight + 'px';
+              }}
+            />
+            <button
+              onClick={sendMessage}
+              disabled={(!input.trim() && attachments.length === 0) || sending}
+              className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              <Send size={18} />
+              {sending ? 'Sending...' : 'Send'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
