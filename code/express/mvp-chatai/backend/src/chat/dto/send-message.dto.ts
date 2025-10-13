@@ -1,4 +1,4 @@
-import { IsString, IsInt, IsOptional, MinLength } from 'class-validator';
+import { IsString, IsInt, IsOptional, MinLength, IsArray } from 'class-validator';
 
 export class SendMessageDto {
   @IsString()
@@ -10,5 +10,12 @@ export class SendMessageDto {
 
   @IsOptional()
   @IsString()
-  threadId?: string; // Optional: if not provided, creates new thread
+  threadId?: string;
+
+  @IsOptional()
+  @IsArray()
+  attachments?: Array<{
+    filename: string;
+    extractedText: string;
+  }>;
 }
