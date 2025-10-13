@@ -5156,3 +5156,565 @@ Show 2 threads side by side
 - **"It's perfect!"** → I'll create deployment guide
 
 **Ready for your feedback! 🎉**
+# 🎯 PHẦN 8: VOICE INPUT & TTS OUTPUT
+
+**Mục tiêu:** Thêm voice input (Web Speech API) + TTS playback
+
+**Thời gian:** 15-20 phút
+
+---
+
+## 📁 CẤU TRÚC PHẦN 8
+
+```
+frontend/components/
+├── VoiceRecorder.tsx (NEW)
+└── ChatInput.tsx (UPDATE - add voice)
+
+frontend/app/chat/[projectId]/[threadId]/
+└── page.tsx (UPDATE - integrate voice)
+```
+
+---
+
+## 📄 FILE 1: `frontend/components/VoiceRecorder.tsx`
+
+```typescript
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
+import { Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
+
+interface Props {
+  onTranscript: (text: string) => void;
+  disabled?: boolean;
+}
+
+export default function VoiceRecorder({ onTranscript, disabled }: Props) {
+  const [isListening, setIsListening] = useState(false);
+  const [isSupported, setIsSupported] = useState(false);
+  const [transcript, setTranscript] = useState('');
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    // Check if Web Speech API is supported
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        setIsSupported(true);
+        recognitionRef.current = new SpeechRecognition();
+        recognitionRef.current.continuous = false;
+        recognitionRef.current.interimResults = true;
+        recognitionRef.current.lang = 'en-US';
+
+        recognitionRef.current.onresult = (event: any) => {
+          const current = event.resultIndex;
+          const transcriptResult = event.results[current][0].transcript;
+          setTranscript(transcriptResult);
+
+          // If it's final result, send to parent
+          if (event.results[current].isFinal) {
+            onTranscript(transcriptResult);
+            setTranscript('');
+          }
+        };
+
+        recognitionRef.current.onerror = (event: any) => {
+          console.error('Speech recognition error:', event.error);
+          setIsListening(false);
+          if (event.error === 'not-allowed') {
+            alert('Microphone permission denied. Please allow microphone access.');
+          }
+        };
+
+        recognitionRef.current.onend = () => {
+          setIsListening(false);
+        };
+      }
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, [onTranscript]);
+
+  const toggleListening = () => {
+    if (!isSupported) {
+      alert('Speech recognition is not supported in your browser. Please use Chrome or Edge.');
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      setTranscript('');
+      recognitionRef.current.start();
+      setIsListening(true);
+    }
+  };
+
+  if (!isSupported) {
+    return (
+      <button
+        disabled
+        className="p-3 text-gray-400 rounded-lg cursor-not-allowed"
+        title="Speech recognition not supported"
+      >
+        <MicOff size={20} />
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        onClick={toggleListening}
+        disabled={disabled}
+        className={`p-3 rounded-lg transition-colors ${
+          isListening
+            ? 'bg-red-500 text-white animate-pulse'
+            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+        } disabled:opacity-50 disabled:cursor-not-allowed`}
+        title={isListening ? 'Stop recording' : 'Start recording'}
+      >
+        {isListening ? <Mic size={20} /> : <Mic size={20} />}
+      </button>
+
+      {transcript && (
+        <div className="text-sm text-gray-600 italic">
+          Listening: "{transcript}"
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+## 📄 FILE 2: `frontend/components/TTSPlayer.tsx`
+
+```typescript
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Volume2, VolumeX, Loader2 } from 'lucide-react';
+
+interface Props {
+  text: string;
+  autoPlay?: boolean;
+}
+
+export default function TTSPlayer({ text, autoPlay = false }: Props) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isSupported, setIsSupported] = useState(false);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      setIsSupported(true);
+
+      // Load voices
+      const loadVoices = () => {
+        const availableVoices = window.speechSynthesis.getVoices();
+        setVoices(availableVoices);
+      };
+
+      loadVoices();
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (autoPlay && isSupported) {
+      playTTS();
+    }
+  }, [autoPlay, isSupported]);
+
+  const playTTS = () => {
+    if (!isSupported || !text) return;
+
+    // Stop any ongoing speech
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    
+    // Use first English voice if available
+    const englishVoice = voices.find(voice => voice.lang.startsWith('en'));
+    if (englishVoice) {
+      utterance.voice = englishVoice;
+    }
+
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+
+    utterance.onstart = () => setIsPlaying(true);
+    utterance.onend = () => setIsPlaying(false);
+    utterance.onerror = () => setIsPlaying(false);
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const stopTTS = () => {
+    window.speechSynthesis.cancel();
+    setIsPlaying(false);
+  };
+
+  if (!isSupported) {
+    return null;
+  }
+
+  return (
+    <button
+      onClick={isPlaying ? stopTTS : playTTS}
+      className={`p-1 rounded hover:bg-gray-200 transition-colors ${
+        isPlaying ? 'text-blue-500' : 'text-gray-500'
+      }`}
+      title={isPlaying ? 'Stop speaking' : 'Read aloud'}
+    >
+      {isPlaying ? <Loader2 size={16} className="animate-spin" /> : <Volume2 size={16} />}
+    </button>
+  );
+}
+```
+
+---
+
+## 📄 FILE 3: `frontend/components/MessageList.tsx` (UPDATE)
+
+```typescript
+'use client';
+
+import { useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import { Bot, User } from 'lucide-react';
+import TTSPlayer from './TTSPlayer';
+
+interface Message {
+  id: number;
+  content: string;
+  role: 'user' | 'assistant' | 'system';
+  createdAt?: string;
+  user?: { name: string };
+  agent?: { name: string };
+}
+
+interface Props {
+  messages: Message[];
+  streamingMessage?: string;
+}
+
+export default function MessageList({ messages, streamingMessage }: Props) {
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, streamingMessage]);
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {messages.map((message) => (
+        <div
+          key={message.id}
+          className={`flex gap-3 ${
+            message.role === 'user' ? 'justify-end' : 'justify-start'
+          }`}
+        >
+          {message.role === 'assistant' && (
+            <div className="flex-shrink-0 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+              <Bot size={18} className="text-white" />
+            </div>
+          )}
+
+          <div
+            className={`max-w-[70%] rounded-lg px-4 py-2 ${
+              message.role === 'user'
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-100 text-gray-900'
+            }`}
+          >
+            {message.role === 'assistant' ? (
+              <div className="prose prose-sm max-w-none">
+                <ReactMarkdown>{message.content}</ReactMarkdown>
+              </div>
+            ) : (
+              <p className="whitespace-pre-wrap">{message.content}</p>
+            )}
+            
+            <div className="flex items-center justify-between mt-1">
+              {message.createdAt && (
+                <p className={`text-xs ${
+                  message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
+                }`}>
+                  {new Date(message.createdAt).toLocaleTimeString()}
+                </p>
+              )}
+              
+              {/* TTS button for assistant messages */}
+              {message.role === 'assistant' && (
+                <TTSPlayer text={message.content} />
+              )}
+            </div>
+          </div>
+
+          {message.role === 'user' && (
+            <div className="flex-shrink-0 w-8 h-8 bg-gray-500 rounded-full flex items-center justify-center">
+              <User size={18} className="text-white" />
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* Streaming message */}
+      {streamingMessage && (
+        <div className="flex gap-3 justify-start">
+          <div className="flex-shrink-0 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+            <Bot size={18} className="text-white" />
+          </div>
+          <div className="max-w-[70%] rounded-lg px-4 py-2 bg-gray-100 text-gray-900">
+            <div className="prose prose-sm max-w-none">
+              <ReactMarkdown>{streamingMessage}</ReactMarkdown>
+            </div>
+            <div className="flex items-center gap-1 mt-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div ref={messagesEndRef} />
+    </div>
+  );
+}
+```
+
+---
+
+## 📄 FILE 4: `frontend/app/chat/[projectId]/[threadId]/page.tsx` (UPDATE)
+
+**Replace the Input section (line ~200) with this:**
+
+```typescript
+      {/* Input */}
+      <div className="bg-white border-t border-gray-200 p-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex gap-2">
+            {/* Voice Recorder */}
+            <VoiceRecorder
+              onTranscript={(text) => {
+                setInput(text);
+                // Auto-send after voice input
+                setTimeout(() => {
+                  if (text.trim()) {
+                    sendMessage();
+                  }
+                }, 500);
+              }}
+              disabled={sending}
+            />
+
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Type your message or use voice... (Press Enter to send, Shift+Enter for new line)"
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              rows={1}
+              disabled={sending}
+              style={{ minHeight: '52px', maxHeight: '200px' }}
+              onInput={(e) => {
+                const target = e.target as HTMLTextAreaElement;
+                target.style.height = 'auto';
+                target.style.height = target.scrollHeight + 'px';
+              }}
+            />
+            <button
+              onClick={sendMessage}
+              disabled={!input.trim() || sending}
+              className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              <Send size={18} />
+              {sending ? 'Sending...' : 'Send'}
+            </button>
+          </div>
+        </div>
+      </div>
+```
+
+**And add import at top:**
+
+```typescript
+import VoiceRecorder from '@/components/VoiceRecorder';
+```
+
+---
+
+## ✅ SETUP PHẦN 8
+
+**Restart frontend:**
+```bash
+# In frontend folder
+npm run dev
+```
+
+**Browser will auto-reload**
+
+---
+
+## 🧪 TEST PHẦN 8
+
+### **Test 1: Voice Input**
+
+1. Open chat interface
+2. Click microphone button (left of text input)
+3. Browser will ask for microphone permission → Click "Allow"
+4. Speak clearly: "Hello, can you hear me?"
+5. Watch:
+   - ✅ Microphone button turns red (recording)
+   - ✅ Text appears below button as you speak
+   - ✅ After you stop, message auto-sends
+   - ✅ AI responds
+
+### **Test 2: TTS Output**
+
+1. Wait for AI response
+2. Look for speaker icon (🔊) at bottom right of AI message
+3. Click it
+4. Watch:
+   - ✅ Icon animates (spinning)
+   - ✅ Browser reads the message aloud
+5. Click again to stop
+
+### **Test 3: Voice Conversation**
+
+1. Click mic button
+2. Say: "Tell me a joke"
+3. Wait for response
+4. Click speaker icon to hear joke
+5. Click mic again
+6. Say: "Tell me another one"
+7. AI should understand context!
+
+### **Test 4: Multiple Languages (if supported)**
+
+1. Click mic
+2. Speak in different language (browser-dependent)
+3. Text should appear in that language
+
+### **Test 5: Browser Compatibility**
+
+**Chrome/Edge:**
+- ✅ Voice input works
+- ✅ TTS works
+- ✅ All features available
+
+**Firefox:**
+- ⚠️ Voice input may not work (browser limitation)
+- ✅ TTS works
+
+**Safari:**
+- ⚠️ Voice input limited
+- ✅ TTS works
+
+---
+
+## 📊 VOICE FEATURES OVERVIEW
+
+```
+Voice Input Flow:
+1. Click mic button
+2. Browser requests permission
+3. Start speaking
+4. Live transcript shown
+5. Stop speaking
+6. Message auto-sends
+
+TTS Output Flow:
+1. AI responds
+2. Speaker icon appears
+3. Click icon
+4. Browser reads message
+5. Click again to stop
+```
+
+---
+
+## 💡 VOICE SETTINGS (Optional Enhancement)
+
+You can add voice settings later:
+
+```typescript
+// Voice speed control
+utterance.rate = 1.2; // Faster
+utterance.rate = 0.8; // Slower
+
+// Voice selection
+const voices = window.speechSynthesis.getVoices();
+utterance.voice = voices[0]; // Select different voice
+
+// Language
+recognition.lang = 'es-ES'; // Spanish
+recognition.lang = 'fr-FR'; // French
+```
+
+---
+
+## 🎨 UI IMPROVEMENTS
+
+**Current UI:**
+```
+[🎤] [Text input________________] [Send]
+     ↑ Voice button
+```
+
+**With voice active:**
+```
+[🔴] Listening: "Hello there"
+     [Text input________________] [Send]
+```
+
+**AI message with TTS:**
+```
+┌─────────────────────────────┐
+│ Hello! How can I help you?  │
+│                              │
+│ 12:34 PM              [🔊]  │
+└─────────────────────────────┘
+                         ↑ Click to hear
+```
+
+---
+
+## 📞 NEXT STEP
+
+**Khi đã test xong, reply:**
+- **"OK, tiếp Phần 9"** → Tôi gửi FILE UPLOAD component
+- **"Voice works!"** → Great! Ready for file upload?
+- **"Có lỗi: [mô tả]"** → Tôi giúp debug
+
+---
+
+## 💡 CURRENT STATUS
+
+```
+✅ Phần 1: Docker + Database
+✅ Phần 2: Backend Init + 6 Tables
+✅ Phần 3: Auth Module (JWT)
+✅ Phần 4: Projects + Threading
+✅ Phần 5: Chat + AI (OpenAI/Gemini)
+✅ Phần 6: WebSocket (Real-time streaming)
+✅ Phần 7: Frontend Web (Next.js)
+✅ Phần 8: Voice Input & TTS ← YOU ARE HERE
+
+Next: Phần 9 - File Upload & Processing
+```
+
+**Voice features added! 🎤🔊**
+
+**Chờ confirm! 🚀**
