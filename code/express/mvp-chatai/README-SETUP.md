@@ -1436,3 +1436,853 @@ Next: Phần 4 - Projects + Threading
 **Auth working! JWT validated! 🔐**
 
 **Chờ confirm! 🚀**
+
+# 🎯 PHẦN 4: PROJECTS + THREADING MODULE
+
+**Mục tiêu:** Tạo Projects với RBAC + Conversations Threading
+
+**Thời gian:** 20-25 phút
+
+---
+
+## 📁 CẤU TRÚC PHẦN 4
+
+```
+backend/src/
+├── projects/
+│   ├── projects.module.ts
+│   ├── projects.controller.ts
+│   ├── projects.service.ts
+│   └── dto/
+│       ├── create-project.dto.ts
+│       └── invite-member.dto.ts
+├── conversations/
+│   ├── conversations.module.ts
+│   ├── conversations.controller.ts
+│   ├── conversations.service.ts
+│   └── dto/
+│       └── create-conversation.dto.ts
+└── app.module.ts (update)
+```
+
+---
+
+## 📄 FILE 1: `backend/src/projects/dto/create-project.dto.ts`
+
+```typescript
+import { IsString, MinLength } from 'class-validator';
+
+export class CreateProjectDto {
+  @IsString()
+  @MinLength(2)
+  name: string;
+}
+```
+
+---
+
+## 📄 FILE 2: `backend/src/projects/dto/invite-member.dto.ts`
+
+```typescript
+import { IsEmail, IsIn } from 'class-validator';
+
+export class InviteMemberDto {
+  @IsEmail()
+  email: string;
+
+  @IsIn(['owner', 'editor', 'viewer'])
+  role: string;
+}
+```
+
+---
+
+## 📄 FILE 3: `backend/src/projects/projects.service.ts`
+
+```typescript
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateProjectDto } from './dto/create-project.dto';
+import { InviteMemberDto } from './dto/invite-member.dto';
+
+@Injectable()
+export class ProjectsService {
+  constructor(private prisma: PrismaService) {}
+
+  // Create project
+  async create(userId: number, createProjectDto: CreateProjectDto) {
+    const project = await this.prisma.project.create({
+      data: {
+        name: createProjectDto.name,
+        ownerId: userId,
+        members: {
+          create: {
+            userId: userId,
+            role: 'owner',
+          },
+        },
+      },
+      include: {
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return project;
+  }
+
+  // Get user's projects
+  async getUserProjects(userId: number) {
+    const projects = await this.prisma.project.findMany({
+      where: {
+        members: {
+          some: {
+            userId: userId,
+          },
+        },
+      },
+      include: {
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            conversations: true,
+          },
+        },
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+    });
+
+    return projects;
+  }
+
+  // Get project by ID
+  async getProjectById(projectId: number, userId: number) {
+    const project = await this.prisma.project.findFirst({
+      where: {
+        id: projectId,
+        members: {
+          some: {
+            userId: userId,
+          },
+        },
+      },
+      include: {
+        owner: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+        conversations: {
+          orderBy: {
+            updatedAt: 'desc',
+          },
+          take: 10,
+        },
+      },
+    });
+
+    if (!project) {
+      throw new NotFoundException('Project not found or access denied');
+    }
+
+    return project;
+  }
+
+  // Invite member to project
+  async inviteMember(projectId: number, userId: number, inviteMemberDto: InviteMemberDto) {
+    // Check if user is owner or editor
+    const membership = await this.prisma.projectMember.findFirst({
+      where: {
+        projectId: projectId,
+        userId: userId,
+        role: {
+          in: ['owner', 'editor'],
+        },
+      },
+    });
+
+    if (!membership) {
+      throw new ForbiddenException('Only owners and editors can invite members');
+    }
+
+    // Find user by email
+    const invitedUser = await this.prisma.user.findUnique({
+      where: { email: inviteMemberDto.email },
+    });
+
+    if (!invitedUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Check if already a member
+    const existingMember = await this.prisma.projectMember.findUnique({
+      where: {
+        projectId_userId: {
+          projectId: projectId,
+          userId: invitedUser.id,
+        },
+      },
+    });
+
+    if (existingMember) {
+      throw new ForbiddenException('User is already a member');
+    }
+
+    // Add member
+    const member = await this.prisma.projectMember.create({
+      data: {
+        projectId: projectId,
+        userId: invitedUser.id,
+        role: inviteMemberDto.role,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    return member;
+  }
+
+  // Remove member
+  async removeMember(projectId: number, userId: number, memberId: number) {
+    // Check if user is owner
+    const membership = await this.prisma.projectMember.findFirst({
+      where: {
+        projectId: projectId,
+        userId: userId,
+        role: 'owner',
+      },
+    });
+
+    if (!membership) {
+      throw new ForbiddenException('Only owners can remove members');
+    }
+
+    // Cannot remove owner
+    const memberToRemove = await this.prisma.projectMember.findFirst({
+      where: {
+        projectId: projectId,
+        userId: memberId,
+      },
+    });
+
+    if (!memberToRemove) {
+      throw new NotFoundException('Member not found');
+    }
+
+    if (memberToRemove.role === 'owner') {
+      throw new ForbiddenException('Cannot remove project owner');
+    }
+
+    // Remove member
+    await this.prisma.projectMember.delete({
+      where: {
+        id: memberToRemove.id,
+      },
+    });
+
+    return { message: 'Member removed successfully' };
+  }
+
+  // Check user access to project
+  async checkAccess(projectId: number, userId: number): Promise<boolean> {
+    const member = await this.prisma.projectMember.findFirst({
+      where: {
+        projectId: projectId,
+        userId: userId,
+      },
+    });
+
+    return !!member;
+  }
+}
+```
+
+---
+
+## 📄 FILE 4: `backend/src/projects/projects.controller.ts`
+
+```typescript
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Delete,
+  UseGuards,
+  Request,
+  ParseIntPipe,
+} from '@nestjs/common';
+import { ProjectsService } from './projects.service';
+import { CreateProjectDto } from './dto/create-project.dto';
+import { InviteMemberDto } from './dto/invite-member.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+
+@Controller('projects')
+@UseGuards(JwtAuthGuard)
+export class ProjectsController {
+  constructor(private projectsService: ProjectsService) {}
+
+  @Post()
+  async create(@Request() req, @Body() createProjectDto: CreateProjectDto) {
+    return this.projectsService.create(req.user.id, createProjectDto);
+  }
+
+  @Get()
+  async getUserProjects(@Request() req) {
+    return this.projectsService.getUserProjects(req.user.id);
+  }
+
+  @Get(':id')
+  async getProjectById(@Request() req, @Param('id', ParseIntPipe) projectId: number) {
+    return this.projectsService.getProjectById(projectId, req.user.id);
+  }
+
+  @Post(':id/members')
+  async inviteMember(
+    @Request() req,
+    @Param('id', ParseIntPipe) projectId: number,
+    @Body() inviteMemberDto: InviteMemberDto,
+  ) {
+    return this.projectsService.inviteMember(projectId, req.user.id, inviteMemberDto);
+  }
+
+  @Delete(':id/members/:memberId')
+  async removeMember(
+    @Request() req,
+    @Param('id', ParseIntPipe) projectId: number,
+    @Param('memberId', ParseIntPipe) memberId: number,
+  ) {
+    return this.projectsService.removeMember(projectId, req.user.id, memberId);
+  }
+}
+```
+
+---
+
+## 📄 FILE 5: `backend/src/projects/projects.module.ts`
+
+```typescript
+import { Module } from '@nestjs/common';
+import { ProjectsController } from './projects.controller';
+import { ProjectsService } from './projects.service';
+import { PrismaModule } from '../prisma/prisma.module';
+
+@Module({
+  imports: [PrismaModule],
+  controllers: [ProjectsController],
+  providers: [ProjectsService],
+  exports: [ProjectsService],
+})
+export class ProjectsModule {}
+```
+
+---
+
+## 📄 FILE 6: `backend/src/conversations/dto/create-conversation.dto.ts`
+
+```typescript
+import { IsString, IsOptional, MinLength } from 'class-validator';
+
+export class CreateConversationDto {
+  @IsString()
+  @MinLength(1)
+  @IsOptional()
+  title?: string;
+}
+```
+
+---
+
+## 📄 FILE 7: `backend/src/conversations/conversations.service.ts`
+
+```typescript
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { ProjectsService } from '../projects/projects.service';
+import { CreateConversationDto } from './dto/create-conversation.dto';
+
+@Injectable()
+export class ConversationsService {
+  constructor(
+    private prisma: PrismaService,
+    private projectsService: ProjectsService,
+  ) {}
+
+  // Create conversation (thread)
+  async create(projectId: number, userId: number, dto: CreateConversationDto) {
+    // Check access
+    const hasAccess = await this.projectsService.checkAccess(projectId, userId);
+    if (!hasAccess) {
+      throw new ForbiddenException('Access denied to this project');
+    }
+
+    const conversation = await this.prisma.conversation.create({
+      data: {
+        projectId: projectId,
+        title: dto.title || 'New Conversation',
+        // threadId is auto-generated via @default(uuid()) in schema
+      },
+      include: {
+        project: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    return conversation;
+  }
+
+  // Get all conversations in a project
+  async getProjectConversations(projectId: number, userId: number) {
+    // Check access
+    const hasAccess = await this.projectsService.checkAccess(projectId, userId);
+    if (!hasAccess) {
+      throw new ForbiddenException('Access denied to this project');
+    }
+
+    const conversations = await this.prisma.conversation.findMany({
+      where: {
+        projectId: projectId,
+      },
+      include: {
+        _count: {
+          select: {
+            messages: true,
+          },
+        },
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+    });
+
+    return conversations;
+  }
+
+  // Get conversation by threadId (IMPORTANT for threading!)
+  async getByThreadId(threadId: string, userId: number) {
+    const conversation = await this.prisma.conversation.findUnique({
+      where: {
+        threadId: threadId,
+      },
+      include: {
+        project: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        messages: {
+          orderBy: {
+            createdAt: 'asc',
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            agent: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    // Check access
+    const hasAccess = await this.projectsService.checkAccess(conversation.projectId, userId);
+    if (!hasAccess) {
+      throw new ForbiddenException('Access denied to this conversation');
+    }
+
+    return conversation;
+  }
+
+  // Update conversation title
+  async updateTitle(threadId: string, userId: number, title: string) {
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { threadId },
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    // Check access
+    const hasAccess = await this.projectsService.checkAccess(conversation.projectId, userId);
+    if (!hasAccess) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    return this.prisma.conversation.update({
+      where: { threadId },
+      data: { title },
+    });
+  }
+
+  // Delete conversation
+  async delete(threadId: string, userId: number) {
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { threadId },
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    // Check if user is owner or editor
+    const member = await this.prisma.projectMember.findFirst({
+      where: {
+        projectId: conversation.projectId,
+        userId: userId,
+        role: {
+          in: ['owner', 'editor'],
+        },
+      },
+    });
+
+    if (!member) {
+      throw new ForbiddenException('Only owners and editors can delete conversations');
+    }
+
+    await this.prisma.conversation.delete({
+      where: { threadId },
+    });
+
+    return { message: 'Conversation deleted successfully' };
+  }
+}
+```
+
+---
+
+## 📄 FILE 8: `backend/src/conversations/conversations.controller.ts`
+
+```typescript
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Patch,
+  Delete,
+  UseGuards,
+  Request,
+  ParseIntPipe,
+} from '@nestjs/common';
+import { ConversationsService } from './conversations.service';
+import { CreateConversationDto } from './dto/create-conversation.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+
+@Controller('projects/:projectId/conversations')
+@UseGuards(JwtAuthGuard)
+export class ConversationsController {
+  constructor(private conversationsService: ConversationsService) {}
+
+  @Post()
+  async create(
+    @Request() req,
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Body() createConversationDto: CreateConversationDto,
+  ) {
+    return this.conversationsService.create(projectId, req.user.id, createConversationDto);
+  }
+
+  @Get()
+  async getProjectConversations(
+    @Request() req,
+    @Param('projectId', ParseIntPipe) projectId: number,
+  ) {
+    return this.conversationsService.getProjectConversations(projectId, req.user.id);
+  }
+
+  @Get('thread/:threadId')
+  async getByThreadId(@Request() req, @Param('threadId') threadId: string) {
+    return this.conversationsService.getByThreadId(threadId, req.user.id);
+  }
+
+  @Patch('thread/:threadId')
+  async updateTitle(
+    @Request() req,
+    @Param('threadId') threadId: string,
+    @Body('title') title: string,
+  ) {
+    return this.conversationsService.updateTitle(threadId, req.user.id, title);
+  }
+
+  @Delete('thread/:threadId')
+  async delete(@Request() req, @Param('threadId') threadId: string) {
+    return this.conversationsService.delete(threadId, req.user.id);
+  }
+}
+```
+
+---
+
+## 📄 FILE 9: `backend/src/conversations/conversations.module.ts`
+
+```typescript
+import { Module } from '@nestjs/common';
+import { ConversationsController } from './conversations.controller';
+import { ConversationsService } from './conversations.service';
+import { PrismaModule } from '../prisma/prisma.module';
+import { ProjectsModule } from '../projects/projects.module';
+
+@Module({
+  imports: [PrismaModule, ProjectsModule],
+  controllers: [ConversationsController],
+  providers: [ConversationsService],
+  exports: [ConversationsService],
+})
+export class ConversationsModule {}
+```
+
+---
+
+## 📄 FILE 10: `backend/src/app.module.ts` (UPDATE)
+
+```typescript
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { PrismaModule } from './prisma/prisma.module';
+import { AuthModule } from './auth/auth.module';
+import { ProjectsModule } from './projects/projects.module';
+import { ConversationsModule } from './conversations/conversations.module';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+    PrismaModule,
+    AuthModule,
+    ProjectsModule, // ← ADD
+    ConversationsModule, // ← ADD
+  ],
+})
+export class AppModule {}
+```
+
+---
+
+## ✅ SETUP & TEST PHẦN 4
+
+**Restart backend:**
+```bash
+npm run start:dev
+```
+
+---
+
+## 🧪 TEST PHẦN 4
+
+### **Setup: Get your JWT token**
+```bash
+# Login first
+curl -X POST http://localhost:3001/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123"}'
+
+# Copy the access_token from response
+export TOKEN="your_access_token_here"
+```
+
+### **Test 1: Create Project**
+```bash
+curl -X POST http://localhost:3001/projects \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"My First Project"}'
+```
+
+**Expected:**
+```json
+{
+  "id": 1,
+  "name": "My First Project",
+  "ownerId": 1,
+  "owner": {...},
+  "members": [...]
+}
+```
+
+### **Test 2: Get Projects**
+```bash
+curl -X GET http://localhost:3001/projects \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### **Test 3: Create Conversation (Thread!)**
+```bash
+curl -X POST http://localhost:3001/projects/1/conversations \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Customer Support Bot"}'
+```
+
+**Expected:**
+```json
+{
+  "id": 1,
+  "projectId": 1,
+  "threadId": "550e8400-e29b-41d4-a716-446655440000",
+  "title": "Customer Support Bot",
+  "createdAt": "..."
+}
+```
+
+**⚠️ IMPORTANT:** Copy the `threadId` - you'll use this for chat!
+
+### **Test 4: Get Conversations**
+```bash
+curl -X GET http://localhost:3001/projects/1/conversations \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### **Test 5: Get Conversation by ThreadId**
+```bash
+curl -X GET http://localhost:3001/projects/1/conversations/thread/YOUR_THREAD_ID \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### **Test 6: Invite Member (signup another user first)**
+```bash
+# Signup user 2
+curl -X POST http://localhost:3001/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email":"user2@example.com",
+    "password":"password123",
+    "name":"User Two"
+  }'
+
+# Invite to project
+curl -X POST http://localhost:3001/projects/1/members \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email":"user2@example.com",
+    "role":"editor"
+  }'
+```
+
+---
+
+## 📊 THREADING ARCHITECTURE
+
+```
+Project 1
+  ↓
+Conversation 1 (threadId: abc-123)
+  ↓
+  ├── Message 1 (user)
+  ├── Message 2 (assistant)
+  ├── Message 3 (user)
+  └── Message 4 (assistant)
+
+Conversation 2 (threadId: def-456)
+  ↓
+  ├── Message 1 (user)
+  └── Message 2 (assistant)
+```
+
+**Key Points:**
+- ✅ Each conversation has unique `threadId` (UUID)
+- ✅ Messages belong to conversation
+- ✅ AI maintains context via threadId
+- ✅ Multiple threads in one project
+
+---
+
+## 📞 NEXT STEP
+
+**Khi đã test xong, reply:**
+- **"OK, tiếp Phần 5"** → Tôi gửi CHAT + AI Module (Core!)
+- **"Có lỗi: [mô tả]"** → Tôi giúp debug
+- **"Threading works!"** → Perfect! Sang phần Chat + OpenAI
+
+---
+
+## 💡 CURRENT STATUS
+
+```
+✅ Phần 1: Docker + Database
+✅ Phần 2: Backend Init + 6 Tables
+✅ Phần 3: Auth Module (JWT)
+✅ Phần 4: Projects + Threading ← YOU ARE HERE
+
+Next: Phần 5 - Chat + AI (OpenAI/Gemini)
+```
+
+**Threading system ready! 🧵**
+
+**Chờ confirm! 🚀**
