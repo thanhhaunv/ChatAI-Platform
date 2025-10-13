@@ -3007,3 +3007,761 @@ Next: Phần 6 - WebSocket (Real-time)
 - ✅ Token tracking
 
 **Chờ confirm! 🚀**
+# 🎯 PHẦN 6: WEBSOCKET (REAL-TIME STREAMING)
+
+**Mục tiêu:** Real-time chat streaming + typing indicators
+
+**Thời gian:** 20-25 phút
+
+---
+
+## 📁 CẤU TRÚC PHẦN 6
+
+```
+backend/src/
+├── websocket/
+│   ├── chat.gateway.ts
+│   └── websocket.module.ts
+└── app.module.ts (update)
+```
+
+---
+
+## 📄 FILE 1: `backend/src/websocket/chat.gateway.ts`
+
+```typescript
+import {
+  WebSocketGateway,
+  WebSocketServer,
+  SubscribeMessage,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+  ConnectedSocket,
+  MessageBody,
+} from '@nestjs/websockets';
+import { Server, Socket } from 'socket.io';
+import { UseGuards } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { PrismaService } from '../prisma/prisma.service';
+import { ChatService } from '../chat/chat.service';
+import { OpenAIService } from '../chat/agents/openai.service';
+
+interface AuthenticatedSocket extends Socket {
+  userId?: number;
+  userEmail?: string;
+}
+
+@WebSocketGateway({
+  cors: {
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true,
+  },
+})
+export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
+  @WebSocketServer()
+  server: Server;
+
+  private userSockets: Map<number, string> = new Map(); // userId -> socketId
+
+  constructor(
+    private jwtService: JwtService,
+    private prisma: PrismaService,
+    private chatService: ChatService,
+    private openaiService: OpenAIService,
+  ) {}
+
+  // Handle client connection
+  async handleConnection(client: AuthenticatedSocket) {
+    try {
+      // Extract token from handshake
+      const token = client.handshake.auth.token || client.handshake.headers.authorization?.split(' ')[1];
+
+      if (!token) {
+        console.log('❌ No token provided');
+        client.disconnect();
+        return;
+      }
+
+      // Verify JWT
+      const payload = this.jwtService.verify(token);
+      client.userId = payload.sub;
+      client.userEmail = payload.email;
+
+      // Store user socket
+      this.userSockets.set(client.userId, client.id);
+
+      console.log(`✅ Client connected: ${client.id} (User: ${client.userEmail})`);
+      client.emit('connected', { message: 'Connected to WebSocket server' });
+    } catch (error) {
+      console.log('❌ Invalid token:', error.message);
+      client.disconnect();
+    }
+  }
+
+  // Handle client disconnect
+  handleDisconnect(client: AuthenticatedSocket) {
+    if (client.userId) {
+      this.userSockets.delete(client.userId);
+      console.log(`❌ Client disconnected: ${client.id} (User: ${client.userEmail})`);
+    }
+  }
+
+  // Join a conversation room
+  @SubscribeMessage('join_thread')
+  async handleJoinThread(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { threadId: string },
+  ) {
+    try {
+      // Verify user has access to this thread
+      const conversation = await this.prisma.conversation.findUnique({
+        where: { threadId: data.threadId },
+        include: { project: true },
+      });
+
+      if (!conversation) {
+        client.emit('error', { message: 'Conversation not found' });
+        return;
+      }
+
+      // Check user access
+      const member = await this.prisma.projectMember.findFirst({
+        where: {
+          projectId: conversation.projectId,
+          userId: client.userId,
+        },
+      });
+
+      if (!member) {
+        client.emit('error', { message: 'Access denied' });
+        return;
+      }
+
+      // Join room
+      client.join(data.threadId);
+      console.log(`👤 User ${client.userEmail} joined thread: ${data.threadId}`);
+
+      client.emit('joined_thread', {
+        threadId: data.threadId,
+        message: 'Successfully joined conversation',
+      });
+    } catch (error) {
+      client.emit('error', { message: error.message });
+    }
+  }
+
+  // Leave a conversation room
+  @SubscribeMessage('leave_thread')
+  handleLeaveThread(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { threadId: string },
+  ) {
+    client.leave(data.threadId);
+    console.log(`👋 User ${client.userEmail} left thread: ${data.threadId}`);
+  }
+
+  // Typing indicator
+  @SubscribeMessage('typing')
+  handleTyping(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { threadId: string; isTyping: boolean },
+  ) {
+    // Broadcast to others in the room (except sender)
+    client.to(data.threadId).emit('user_typing', {
+      userId: client.userId,
+      userEmail: client.userEmail,
+      isTyping: data.isTyping,
+    });
+  }
+
+  // Send message with streaming
+  @SubscribeMessage('send_message')
+  async handleSendMessage(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: {
+      threadId: string;
+      content: string;
+      agentId: number;
+      projectId: number;
+    },
+  ) {
+    try {
+      // 1. Get conversation
+      const conversation = await this.prisma.conversation.findUnique({
+        where: { threadId: data.threadId },
+      });
+
+      if (!conversation) {
+        client.emit('error', { message: 'Conversation not found' });
+        return;
+      }
+
+      // 2. Get agent
+      const agent = await this.prisma.agent.findUnique({
+        where: { id: data.agentId },
+      });
+
+      if (!agent || !agent.active) {
+        client.emit('error', { message: 'Agent not found or inactive' });
+        return;
+      }
+
+      // 3. Save user message
+      const userMessage = await this.prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          userId: client.userId,
+          agentId: agent.id,
+          content: data.content,
+          role: 'user',
+          tokens: Math.ceil(data.content.length / 4),
+        },
+      });
+
+      // Emit user message to room
+      this.server.to(data.threadId).emit('new_message', {
+        id: userMessage.id,
+        content: userMessage.content,
+        role: 'user',
+        userId: client.userId,
+        createdAt: userMessage.createdAt,
+      });
+
+      // 4. Get context
+      const messages = await this.prisma.message.findMany({
+        where: { conversationId: conversation.id },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: { role: true, content: true },
+      });
+
+      const context = [
+        { role: 'system' as const, content: 'You are a helpful AI assistant.' },
+        ...messages.reverse().map((msg) => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+        })),
+      ];
+
+      // 5. Stream AI response
+      if (agent.type === 'openai') {
+        await this.streamOpenAIResponse(
+          client,
+          data.threadId,
+          conversation.id,
+          agent,
+          context,
+        );
+      } else {
+        // Non-streaming fallback
+        const response = await this.chatService.sendMessage(client.userId, data.projectId, {
+          content: data.content,
+          agentId: data.agentId,
+          threadId: data.threadId,
+        });
+
+        this.server.to(data.threadId).emit('new_message', response.assistantMessage);
+      }
+
+      // 6. Update conversation timestamp
+      await this.prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { updatedAt: new Date() },
+      });
+    } catch (error) {
+      console.error('Send message error:', error);
+      client.emit('error', { message: error.message });
+    }
+  }
+
+  // Stream OpenAI response
+  private async streamOpenAIResponse(
+    client: AuthenticatedSocket,
+    threadId: string,
+    conversationId: number,
+    agent: any,
+    context: any[],
+  ) {
+    try {
+      const stream = await this.openaiService.streamChat(context, agent.model);
+
+      let fullContent = '';
+      const messageId = Date.now(); // Temporary ID
+
+      // Emit stream start
+      this.server.to(threadId).emit('message_stream_start', {
+        id: messageId,
+        role: 'assistant',
+        agentId: agent.id,
+      });
+
+      // Process stream
+      stream.on('data', (chunk: Buffer) => {
+        const lines = chunk.toString().split('\n').filter((line) => line.trim() !== '');
+
+        for (const line of lines) {
+          if (line.includes('[DONE]')) {
+            continue;
+          }
+
+          if (line.startsWith('data: ')) {
+            try {
+              const json = JSON.parse(line.substring(6));
+              const content = json.choices[0]?.delta?.content;
+
+              if (content) {
+                fullContent += content;
+                // Emit chunk to room
+                this.server.to(threadId).emit('message_stream_chunk', {
+                  id: messageId,
+                  content: content,
+                });
+              }
+            } catch (e) {
+              // Skip parsing errors
+            }
+          }
+        }
+      });
+
+      stream.on('end', async () => {
+        // Save complete message to DB
+        const assistantMessage = await this.prisma.message.create({
+          data: {
+            conversationId: conversationId,
+            agentId: agent.id,
+            content: fullContent,
+            role: 'assistant',
+            tokens: Math.ceil(fullContent.length / 4), // Estimate
+          },
+        });
+
+        // Emit stream end
+        this.server.to(threadId).emit('message_stream_end', {
+          id: assistantMessage.id,
+          content: fullContent,
+          role: 'assistant',
+          tokens: assistantMessage.tokens,
+          createdAt: assistantMessage.createdAt,
+        });
+      });
+
+      stream.on('error', (error: Error) => {
+        console.error('Stream error:', error);
+        client.emit('error', { message: 'Failed to stream response' });
+      });
+    } catch (error) {
+      console.error('Stream setup error:', error);
+      client.emit('error', { message: error.message });
+    }
+  }
+}
+```
+
+---
+
+## 📄 FILE 2: `backend/src/websocket/websocket.module.ts`
+
+```typescript
+import { Module } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
+import { ChatGateway } from './chat.gateway';
+import { PrismaModule } from '../prisma/prisma.module';
+import { ChatModule } from '../chat/chat.module';
+
+@Module({
+  imports: [
+    PrismaModule,
+    ChatModule,
+    JwtModule.register({
+      secret: process.env.JWT_SECRET || 'your-secret-key',
+      signOptions: { expiresIn: '7d' },
+    }),
+  ],
+  providers: [ChatGateway],
+})
+export class WebsocketModule {}
+```
+
+---
+
+## 📄 FILE 3: `backend/src/app.module.ts` (UPDATE)
+
+```typescript
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { PrismaModule } from './prisma/prisma.module';
+import { AuthModule } from './auth/auth.module';
+import { ProjectsModule } from './projects/projects.module';
+import { ConversationsModule } from './conversations/conversations.module';
+import { ChatModule } from './chat/chat.module';
+import { WebsocketModule } from './websocket/websocket.module';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+    PrismaModule,
+    AuthModule,
+    ProjectsModule,
+    ConversationsModule,
+    ChatModule,
+    WebsocketModule, // ← ADD
+  ],
+})
+export class AppModule {}
+```
+
+---
+
+## 📄 FILE 4: `backend/test-websocket.html` (Test Client)
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WebSocket Test Client</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+    #messages { border: 1px solid #ccc; height: 400px; overflow-y: scroll; padding: 10px; margin-bottom: 10px; }
+    .message { margin: 10px 0; padding: 10px; border-radius: 5px; }
+    .user { background: #e3f2fd; text-align: right; }
+    .assistant { background: #f5f5f5; }
+    .system { background: #fff3cd; font-size: 12px; font-style: italic; }
+    input, button { padding: 10px; margin: 5px; }
+    #messageInput { width: 70%; }
+    button { background: #007bff; color: white; border: none; cursor: pointer; }
+    button:hover { background: #0056b3; }
+  </style>
+</head>
+<body>
+  <h1>🚀 WebSocket Test Client</h1>
+  
+  <div>
+    <input id="tokenInput" placeholder="Paste JWT token here" style="width: 90%;" />
+    <button onclick="connect()">Connect</button>
+    <button onclick="disconnect()">Disconnect</button>
+  </div>
+
+  <div>
+    <input id="threadInput" placeholder="Thread ID" style="width: 40%;" />
+    <button onclick="joinThread()">Join Thread</button>
+    <input id="agentInput" placeholder="Agent ID (1)" style="width: 10%;" value="1" />
+    <input id="projectInput" placeholder="Project ID (1)" style="width: 10%;" value="1" />
+  </div>
+
+  <div id="messages"></div>
+
+  <div>
+    <input id="messageInput" placeholder="Type your message..." onkeypress="handleKeyPress(event)" />
+    <button onclick="sendMessage()">Send</button>
+  </div>
+
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+  <script>
+    let socket = null;
+    let currentThreadId = null;
+
+    function connect() {
+      const token = document.getElementById('tokenInput').value;
+      if (!token) {
+        alert('Please enter JWT token');
+        return;
+      }
+
+      socket = io('http://localhost:3001', {
+        auth: { token: token }
+      });
+
+      socket.on('connect', () => {
+        addSystemMessage('✅ Connected to server');
+      });
+
+      socket.on('connected', (data) => {
+        addSystemMessage(data.message);
+      });
+
+      socket.on('disconnect', () => {
+        addSystemMessage('❌ Disconnected from server');
+      });
+
+      socket.on('error', (data) => {
+        addSystemMessage('❌ Error: ' + data.message);
+      });
+
+      socket.on('joined_thread', (data) => {
+        addSystemMessage('✅ Joined thread: ' + data.threadId);
+        currentThreadId = data.threadId;
+      });
+
+      socket.on('new_message', (data) => {
+        addMessage(data.content, data.role);
+      });
+
+      socket.on('message_stream_start', (data) => {
+        addSystemMessage('🤖 AI is typing...');
+      });
+
+      socket.on('message_stream_chunk', (data) => {
+        updateStreamingMessage(data.content);
+      });
+
+      socket.on('message_stream_end', (data) => {
+        finalizeStreamingMessage(data.content);
+      });
+
+      socket.on('user_typing', (data) => {
+        addSystemMessage(`👤 ${data.userEmail} is typing...`);
+      });
+    }
+
+    function disconnect() {
+      if (socket) {
+        socket.disconnect();
+        socket = null;
+      }
+    }
+
+    function joinThread() {
+      const threadId = document.getElementById('threadInput').value;
+      if (!threadId || !socket) {
+        alert('Enter thread ID and connect first');
+        return;
+      }
+
+      socket.emit('join_thread', { threadId: threadId });
+    }
+
+    function sendMessage() {
+      const message = document.getElementById('messageInput').value;
+      const agentId = parseInt(document.getElementById('agentInput').value);
+      const projectId = parseInt(document.getElementById('projectInput').value);
+
+      if (!message || !currentThreadId || !socket) {
+        alert('Join a thread first');
+        return;
+      }
+
+      socket.emit('send_message', {
+        threadId: currentThreadId,
+        content: message,
+        agentId: agentId,
+        projectId: projectId
+      });
+
+      document.getElementById('messageInput').value = '';
+    }
+
+    function handleKeyPress(event) {
+      if (event.key === 'Enter') {
+        sendMessage();
+      } else {
+        // Emit typing indicator
+        if (socket && currentThreadId) {
+          socket.emit('typing', { threadId: currentThreadId, isTyping: true });
+        }
+      }
+    }
+
+    function addMessage(content, role) {
+      const messagesDiv = document.getElementById('messages');
+      const messageDiv = document.createElement('div');
+      messageDiv.className = 'message ' + role;
+      messageDiv.textContent = content;
+      messagesDiv.appendChild(messageDiv);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    function addSystemMessage(content) {
+      const messagesDiv = document.getElementById('messages');
+      const messageDiv = document.createElement('div');
+      messageDiv.className = 'message system';
+      messageDiv.textContent = content;
+      messagesDiv.appendChild(messageDiv);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    let streamingDiv = null;
+
+    function updateStreamingMessage(content) {
+      if (!streamingDiv) {
+        const messagesDiv = document.getElementById('messages');
+        streamingDiv = document.createElement('div');
+        streamingDiv.className = 'message assistant';
+        streamingDiv.id = 'streaming';
+        messagesDiv.appendChild(streamingDiv);
+      }
+      streamingDiv.textContent += content;
+      document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+    }
+
+    function finalizeStreamingMessage(content) {
+      if (streamingDiv) {
+        streamingDiv.textContent = content;
+        streamingDiv = null;
+      }
+    }
+  </script>
+</body>
+</html>
+```
+
+---
+
+## ✅ SETUP & TEST PHẦN 6
+
+**Restart backend:**
+```bash
+npm run start:dev
+```
+
+**Expected output:**
+```
+🚀 Backend running on: http://localhost:3001
+✅ Database connected
+```
+
+---
+
+## 🧪 TEST PHẦN 6
+
+### **Test 1: Open HTML test client**
+
+1. Save `test-websocket.html` to `backend/test-websocket.html`
+2. Open in browser: `file:///path/to/backend/test-websocket.html`
+3. Get JWT token from login:
+```bash
+curl -X POST http://localhost:3001/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123"}'
+```
+4. Paste token in HTML client
+5. Click "Connect"
+6. Enter thread ID (from previous tests)
+7. Click "Join Thread"
+8. Type message and send!
+
+### **Test 2: Test real-time streaming**
+
+Type in HTML client:
+```
+"Tell me a long story about AI"
+```
+
+You should see:
+- ✅ "AI is typing..." message
+- ✅ Words appearing one by one (streaming!)
+- ✅ Complete message saved to DB
+
+### **Test 3: Test typing indicator**
+
+Open 2 browser tabs with the client, both connected to same thread:
+- Type in Tab 1 → Tab 2 shows "User is typing..."
+
+### **Test 4: Test with curl (non-streaming check)**
+
+```bash
+# Still works via REST API
+curl -X POST http://localhost:3001/projects/1/chat/message \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Quick test",
+    "agentId": 1,
+    "threadId": "your-thread-id"
+  }'
+```
+
+---
+
+## 📊 WEBSOCKET EVENTS OVERVIEW
+
+### **Client → Server:**
+```
+join_thread        → Join conversation room
+leave_thread       → Leave conversation room
+typing             → Notify others you're typing
+send_message       → Send message with streaming
+```
+
+### **Server → Client:**
+```
+connected          → Connection successful
+joined_thread      → Successfully joined room
+error              → Error occurred
+new_message        → New complete message
+message_stream_start    → AI started responding
+message_stream_chunk    → AI response chunk (word by word)
+message_stream_end      → AI finished responding
+user_typing        → Another user is typing
+```
+
+---
+
+## 🎨 FRONTEND INTEGRATION (Preview for Part 7)
+
+```typescript
+// Example React component
+import { useEffect, useState } from 'react';
+import { io } from 'socket.io-client';
+
+function ChatComponent({ token, threadId }) {
+  const [socket, setSocket] = useState(null);
+  const [messages, setMessages] = useState([]);
+
+  useEffect(() => {
+    const newSocket = io('http://localhost:3001', {
+      auth: { token }
+    });
+
+    newSocket.on('connect', () => {
+      newSocket.emit('join_thread', { threadId });
+    });
+
+    newSocket.on('message_stream_chunk', (data) => {
+      // Update streaming message in real-time
+      setMessages(prev => updateLastMessage(prev, data.content));
+    });
+
+    setSocket(newSocket);
+    return () => newSocket.close();
+  }, [token, threadId]);
+
+  // ... rest of component
+}
+```
+
+---
+
+## 📞 NEXT STEP
+
+**Khi đã test xong, reply:**
+- **"OK, tiếp Phần 7"** → Tôi gửi FRONTEND (Next.js UI)
+- **"Có lỗi: [mô tả]"** → Tôi giúp debug
+- **"Streaming works! Amazing!"** → Great! Ready for frontend?
+
+---
+
+## 💡 CURRENT STATUS
+
+```
+✅ Phần 1: Docker + Database
+✅ Phần 2: Backend Init + 6 Tables
+✅ Phần 3: Auth Module (JWT)
+✅ Phần 4: Projects + Threading
+✅ Phần 5: Chat + AI (OpenAI/Gemini)
+✅ Phần 6: WebSocket (Real-time streaming) ← YOU ARE HERE
+
+Next: Phần 7 - Frontend Web (Next.js)
+```
+
+**🎉 BACKEND COMPLETE!**
+- ✅ Real-time chat streaming
+- ✅ Typing indicators
+- ✅ Multi-user support
+- ✅ Context maintained
+
+**Ready for frontend! 🚀**
+
+**Chờ confirm!**
