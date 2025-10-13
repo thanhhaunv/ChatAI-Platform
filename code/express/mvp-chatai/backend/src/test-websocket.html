@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WebSocket Test Client</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+    #messages { border: 1px solid #ccc; height: 400px; overflow-y: scroll; padding: 10px; margin-bottom: 10px; }
+    .message { margin: 10px 0; padding: 10px; border-radius: 5px; }
+    .user { background: #e3f2fd; text-align: right; }
+    .assistant { background: #f5f5f5; }
+    .system { background: #fff3cd; font-size: 12px; font-style: italic; }
+    input, button { padding: 10px; margin: 5px; }
+    #messageInput { width: 70%; }
+    button { background: #007bff; color: white; border: none; cursor: pointer; }
+    button:hover { background: #0056b3; }
+  </style>
+</head>
+<body>
+  <h1>🚀 WebSocket Test Client</h1>
+  
+  <div>
+    <input id="tokenInput" placeholder="Paste JWT token here" style="width: 90%;" />
+    <button onclick="connect()">Connect</button>
+    <button onclick="disconnect()">Disconnect</button>
+  </div>
+
+  <div>
+    <input id="threadInput" placeholder="Thread ID" style="width: 40%;" />
+    <button onclick="joinThread()">Join Thread</button>
+    <input id="agentInput" placeholder="Agent ID (1)" style="width: 10%;" value="1" />
+    <input id="projectInput" placeholder="Project ID (1)" style="width: 10%;" value="1" />
+  </div>
+
+  <div id="messages"></div>
+
+  <div>
+    <input id="messageInput" placeholder="Type your message..." onkeypress="handleKeyPress(event)" />
+    <button onclick="sendMessage()">Send</button>
+  </div>
+
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+  <script>
+    let socket = null;
+    let currentThreadId = null;
+
+    function connect() {
+      const token = document.getElementById('tokenInput').value;
+      if (!token) {
+        alert('Please enter JWT token');
+        return;
+      }
+
+      socket = io('http://localhost:3001', {
+        auth: { token: token }
+      });
+
+      socket.on('connect', () => {
+        addSystemMessage('✅ Connected to server');
+      });
+
+      socket.on('connected', (data) => {
+        addSystemMessage(data.message);
+      });
+
+      socket.on('disconnect', () => {
+        addSystemMessage('❌ Disconnected from server');
+      });
+
+      socket.on('error', (data) => {
+        addSystemMessage('❌ Error: ' + data.message);
+      });
+
+      socket.on('joined_thread', (data) => {
+        addSystemMessage('✅ Joined thread: ' + data.threadId);
+        currentThreadId = data.threadId;
+      });
+
+      socket.on('new_message', (data) => {
+        addMessage(data.content, data.role);
+      });
+
+      socket.on('message_stream_start', (data) => {
+        addSystemMessage('🤖 AI is typing...');
+      });
+
+      socket.on('message_stream_chunk', (data) => {
+        updateStreamingMessage(data.content);
+      });
+
+      socket.on('message_stream_end', (data) => {
+        finalizeStreamingMessage(data.content);
+      });
+
+      socket.on('user_typing', (data) => {
+        addSystemMessage(`👤 ${data.userEmail} is typing...`);
+      });
+    }
+
+    function disconnect() {
+      if (socket) {
+        socket.disconnect();
+        socket = null;
+      }
+    }
+
+    function joinThread() {
+      const threadId = document.getElementById('threadInput').value;
+      if (!threadId || !socket) {
+        alert('Enter thread ID and connect first');
+        return;
+      }
+
+      socket.emit('join_thread', { threadId: threadId });
+    }
+
+    function sendMessage() {
+      const message = document.getElementById('messageInput').value;
+      const agentId = parseInt(document.getElementById('agentInput').value);
+      const projectId = parseInt(document.getElementById('projectInput').value);
+
+      if (!message || !currentThreadId || !socket) {
+        alert('Join a thread first');
+        return;
+      }
+
+      socket.emit('send_message', {
+        threadId: currentThreadId,
+        content: message,
+        agentId: agentId,
+        projectId: projectId
+      });
+
+      document.getElementById('messageInput').value = '';
+    }
+
+    function handleKeyPress(event) {
+      if (event.key === 'Enter') {
+        sendMessage();
+      } else {
+        // Emit typing indicator
+        if (socket && currentThreadId) {
+          socket.emit('typing', { threadId: currentThreadId, isTyping: true });
+        }
+      }
+    }
+
+    function addMessage(content, role) {
+      const messagesDiv = document.getElementById('messages');
+      const messageDiv = document.createElement('div');
+      messageDiv.className = 'message ' + role;
+      messageDiv.textContent = content;
+      messagesDiv.appendChild(messageDiv);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    function addSystemMessage(content) {
+      const messagesDiv = document.getElementById('messages');
+      const messageDiv = document.createElement('div');
+      messageDiv.className = 'message system';
+      messageDiv.textContent = content;
+      messagesDiv.appendChild(messageDiv);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    let streamingDiv = null;
+
+    function updateStreamingMessage(content) {
+      if (!streamingDiv) {
+        const messagesDiv = document.getElementById('messages');
+        streamingDiv = document.createElement('div');
+        streamingDiv.className = 'message assistant';
+        streamingDiv.id = 'streaming';
+        messagesDiv.appendChild(streamingDiv);
+      }
+      streamingDiv.textContent += content;
+      document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+    }
+
+    function finalizeStreamingMessage(content) {
+      if (streamingDiv) {
+        streamingDiv.textContent = content;
+        streamingDiv = null;
+      }
+    }
+  </script>
+</body>
+</html>
