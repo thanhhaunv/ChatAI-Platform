@@ -83,8 +83,9 @@ model Message {
   userId         Int?     @map("user_id")
   agentId        Int?     @map("agent_id")
   content        String   @db.Text
-  role           String   // user, assistant, system
+  role           String
   tokens         Int      @default(0)
+  attachments    Json     @default("[]") // ← ADD
   createdAt      DateTime @default(now()) @map("created_at")
 
   // Relations
