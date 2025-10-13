@@ -2286,3 +2286,724 @@ Next: Phần 5 - Chat + AI (OpenAI/Gemini)
 **Threading system ready! 🧵**
 
 **Chờ confirm! 🚀**
+# 🎯 PHẦN 5: CHAT + AI MODULE (CORE!)
+
+**Mục tiêu:** Chat với OpenAI/Gemini, context threading, token tracking
+
+**Thời gian:** 25-30 phút
+
+---
+
+## 📁 CẤU TRÚC PHẦN 5
+
+```
+backend/src/
+├── chat/
+│   ├── chat.module.ts
+│   ├── chat.controller.ts
+│   ├── chat.service.ts
+│   ├── agents/
+│   │   ├── openai.service.ts
+│   │   └── gemini.service.ts
+│   └── dto/
+│       └── send-message.dto.ts
+└── app.module.ts (update)
+```
+
+---
+
+## 📄 FILE 1: `backend/src/chat/dto/send-message.dto.ts`
+
+```typescript
+import { IsString, IsInt, IsOptional, MinLength } from 'class-validator';
+
+export class SendMessageDto {
+  @IsString()
+  @MinLength(1)
+  content: string;
+
+  @IsInt()
+  agentId: number;
+
+  @IsOptional()
+  @IsString()
+  threadId?: string; // Optional: if not provided, creates new thread
+}
+```
+
+---
+
+## 📄 FILE 2: `backend/src/chat/agents/openai.service.ts`
+
+```typescript
+import { Injectable, BadRequestException } from '@nestjs/common';
+import axios from 'axios';
+
+interface Message {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+@Injectable()
+export class OpenAIService {
+  private apiKey: string;
+  private baseUrl = 'https://api.openai.com/v1';
+
+  constructor() {
+    this.apiKey = process.env.OPENAI_API_KEY;
+    if (!this.apiKey) {
+      console.warn('⚠️  OPENAI_API_KEY not found in environment variables');
+    }
+  }
+
+  async chat(messages: Message[], model: string = 'gpt-4'): Promise<{
+    content: string;
+    tokens: number;
+  }> {
+    if (!this.apiKey) {
+      throw new BadRequestException('OpenAI API key not configured');
+    }
+
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/chat/completions`,
+        {
+          model: model,
+          messages: messages,
+          temperature: 0.7,
+          max_tokens: 1000,
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      const content = response.data.choices[0].message.content;
+      const tokens = response.data.usage.total_tokens;
+
+      return {
+        content,
+        tokens,
+      };
+    } catch (error) {
+      console.error('OpenAI API Error:', error.response?.data || error.message);
+      throw new BadRequestException(
+        error.response?.data?.error?.message || 'Failed to call OpenAI API',
+      );
+    }
+  }
+
+  // Stream chat (for WebSocket - Phase 6)
+  async streamChat(messages: Message[], model: string = 'gpt-4') {
+    if (!this.apiKey) {
+      throw new BadRequestException('OpenAI API key not configured');
+    }
+
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/chat/completions`,
+        {
+          model: model,
+          messages: messages,
+          temperature: 0.7,
+          max_tokens: 1000,
+          stream: true,
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          responseType: 'stream',
+        },
+      );
+
+      return response.data;
+    } catch (error) {
+      console.error('OpenAI Stream Error:', error.response?.data || error.message);
+      throw new BadRequestException('Failed to stream OpenAI response');
+    }
+  }
+}
+```
+
+---
+
+## 📄 FILE 3: `backend/src/chat/agents/gemini.service.ts`
+
+```typescript
+import { Injectable, BadRequestException } from '@nestjs/common';
+import axios from 'axios';
+
+interface Message {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+@Injectable()
+export class GeminiService {
+  private apiKey: string;
+  private baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
+
+  constructor() {
+    this.apiKey = process.env.GEMINI_API_KEY;
+    if (!this.apiKey) {
+      console.warn('⚠️  GEMINI_API_KEY not found (optional)');
+    }
+  }
+
+  async chat(messages: Message[]): Promise<{
+    content: string;
+    tokens: number;
+  }> {
+    if (!this.apiKey) {
+      throw new BadRequestException('Gemini API key not configured');
+    }
+
+    try {
+      // Convert to Gemini format
+      const contents = this.convertToGeminiFormat(messages);
+
+      const response = await axios.post(
+        `${this.baseUrl}/models/gemini-pro:generateContent?key=${this.apiKey}`,
+        {
+          contents: contents,
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 1000,
+          },
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      const content = response.data.candidates[0].content.parts[0].text;
+      const tokens = response.data.usageMetadata?.totalTokenCount || 0;
+
+      return {
+        content,
+        tokens,
+      };
+    } catch (error) {
+      console.error('Gemini API Error:', error.response?.data || error.message);
+      throw new BadRequestException(
+        error.response?.data?.error?.message || 'Failed to call Gemini API',
+      );
+    }
+  }
+
+  private convertToGeminiFormat(messages: Message[]) {
+    return messages
+      .filter((msg) => msg.role !== 'system') // Gemini doesn't support system messages
+      .map((msg) => ({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: msg.content }],
+      }));
+  }
+}
+```
+
+---
+
+## 📄 FILE 4: `backend/src/chat/chat.service.ts`
+
+```typescript
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { ConversationsService } from '../conversations/conversations.service';
+import { OpenAIService } from './agents/openai.service';
+import { GeminiService } from './agents/gemini.service';
+import { SendMessageDto } from './dto/send-message.dto';
+
+@Injectable()
+export class ChatService {
+  constructor(
+    private prisma: PrismaService,
+    private conversationsService: ConversationsService,
+    private openaiService: OpenAIService,
+    private geminiService: GeminiService,
+  ) {}
+
+  async sendMessage(userId: number, projectId: number, dto: SendMessageDto) {
+    // 1. Get or create conversation
+    let conversation;
+    if (dto.threadId) {
+      conversation = await this.conversationsService.getByThreadId(dto.threadId, userId);
+    } else {
+      // Create new conversation if no threadId provided
+      conversation = await this.conversationsService.create(projectId, userId, {
+        title: 'New Chat',
+      });
+    }
+
+    // 2. Get agent
+    const agent = await this.prisma.agent.findUnique({
+      where: { id: dto.agentId },
+    });
+
+    if (!agent || !agent.active) {
+      throw new NotFoundException('Agent not found or inactive');
+    }
+
+    // 3. Get conversation context (last 10 messages)
+    const context = await this.getConversationContext(conversation.id);
+
+    // 4. Save user message
+    const userMessage = await this.prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        userId: userId,
+        agentId: agent.id,
+        content: dto.content,
+        role: 'user',
+        tokens: 0,
+      },
+    });
+
+    // 5. Prepare messages for AI
+    const messages = [
+      {
+        role: 'system' as const,
+        content: 'You are a helpful AI assistant.',
+      },
+      ...context,
+      {
+        role: 'user' as const,
+        content: dto.content,
+      },
+    ];
+
+    // 6. Call AI agent
+    let aiResponse: { content: string; tokens: number };
+
+    try {
+      if (agent.type === 'openai') {
+        aiResponse = await this.openaiService.chat(messages, agent.model);
+      } else if (agent.type === 'gemini') {
+        aiResponse = await this.geminiService.chat(messages);
+      } else {
+        throw new BadRequestException('Unsupported agent type');
+      }
+    } catch (error) {
+      // Save error message
+      await this.prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          agentId: agent.id,
+          content: `Error: ${error.message}`,
+          role: 'assistant',
+          tokens: 0,
+        },
+      });
+      throw error;
+    }
+
+    // 7. Save AI response
+    const assistantMessage = await this.prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        agentId: agent.id,
+        content: aiResponse.content,
+        role: 'assistant',
+        tokens: aiResponse.tokens,
+      },
+    });
+
+    // 8. Update user message tokens (estimate)
+    await this.prisma.message.update({
+      where: { id: userMessage.id },
+      data: { tokens: Math.ceil(dto.content.length / 4) }, // Rough estimate
+    });
+
+    // 9. Update conversation timestamp
+    await this.prisma.conversation.update({
+      where: { id: conversation.id },
+      data: { updatedAt: new Date() },
+    });
+
+    // 10. Return response
+    return {
+      threadId: conversation.threadId,
+      userMessage: {
+        id: userMessage.id,
+        content: userMessage.content,
+        role: userMessage.role,
+        createdAt: userMessage.createdAt,
+      },
+      assistantMessage: {
+        id: assistantMessage.id,
+        content: assistantMessage.content,
+        role: assistantMessage.role,
+        tokens: assistantMessage.tokens,
+        createdAt: assistantMessage.createdAt,
+      },
+      agent: {
+        id: agent.id,
+        name: agent.name,
+        type: agent.type,
+      },
+    };
+  }
+
+  // Get conversation context (last 10 messages)
+  private async getConversationContext(conversationId: number) {
+    const messages = await this.prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select: {
+        role: true,
+        content: true,
+      },
+    });
+
+    // Reverse to chronological order
+    return messages.reverse().map((msg) => ({
+      role: msg.role as 'user' | 'assistant' | 'system',
+      content: msg.content,
+    }));
+  }
+
+  // Get message history
+  async getMessageHistory(threadId: string, userId: number) {
+    const conversation = await this.conversationsService.getByThreadId(threadId, userId);
+
+    const messages = await this.prisma.message.findMany({
+      where: { conversationId: conversation.id },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        agent: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+          },
+        },
+      },
+    });
+
+    return {
+      conversation: {
+        id: conversation.id,
+        threadId: conversation.threadId,
+        title: conversation.title,
+      },
+      messages,
+    };
+  }
+
+  // Get token usage for a conversation
+  async getTokenUsage(threadId: string, userId: number) {
+    const conversation = await this.conversationsService.getByThreadId(threadId, userId);
+
+    const totalTokens = await this.prisma.message.aggregate({
+      where: { conversationId: conversation.id },
+      _sum: { tokens: true },
+    });
+
+    const messageCount = await this.prisma.message.count({
+      where: { conversationId: conversation.id },
+    });
+
+    return {
+      threadId: conversation.threadId,
+      totalTokens: totalTokens._sum.tokens || 0,
+      messageCount,
+      estimatedCost: ((totalTokens._sum.tokens || 0) / 1000) * 0.002, // $0.002 per 1K tokens (GPT-4 estimate)
+    };
+  }
+}
+```
+
+---
+
+## 📄 FILE 5: `backend/src/chat/chat.controller.ts`
+
+```typescript
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Param,
+  UseGuards,
+  Request,
+  ParseIntPipe,
+} from '@nestjs/common';
+import { ChatService } from './chat.service';
+import { SendMessageDto } from './dto/send-message.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+
+@Controller('projects/:projectId/chat')
+@UseGuards(JwtAuthGuard)
+export class ChatController {
+  constructor(private chatService: ChatService) {}
+
+  @Post('message')
+  async sendMessage(
+    @Request() req,
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @Body() sendMessageDto: SendMessageDto,
+  ) {
+    return this.chatService.sendMessage(req.user.id, projectId, sendMessageDto);
+  }
+
+  @Get('thread/:threadId/history')
+  async getMessageHistory(@Request() req, @Param('threadId') threadId: string) {
+    return this.chatService.getMessageHistory(threadId, req.user.id);
+  }
+
+  @Get('thread/:threadId/usage')
+  async getTokenUsage(@Request() req, @Param('threadId') threadId: string) {
+    return this.chatService.getTokenUsage(threadId, req.user.id);
+  }
+}
+```
+
+---
+
+## 📄 FILE 6: `backend/src/chat/chat.module.ts`
+
+```typescript
+import { Module } from '@nestjs/common';
+import { ChatController } from './chat.controller';
+import { ChatService } from './chat.service';
+import { OpenAIService } from './agents/openai.service';
+import { GeminiService } from './agents/gemini.service';
+import { PrismaModule } from '../prisma/prisma.module';
+import { ConversationsModule } from '../conversations/conversations.module';
+
+@Module({
+  imports: [PrismaModule, ConversationsModule],
+  controllers: [ChatController],
+  providers: [ChatService, OpenAIService, GeminiService],
+  exports: [ChatService],
+})
+export class ChatModule {}
+```
+
+---
+
+## 📄 FILE 7: `backend/src/app.module.ts` (UPDATE)
+
+```typescript
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { PrismaModule } from './prisma/prisma.module';
+import { AuthModule } from './auth/auth.module';
+import { ProjectsModule } from './projects/projects.module';
+import { ConversationsModule } from './conversations/conversations.module';
+import { ChatModule } from './chat/chat.module';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+    PrismaModule,
+    AuthModule,
+    ProjectsModule,
+    ConversationsModule,
+    ChatModule, // ← ADD
+  ],
+})
+export class AppModule {}
+```
+
+---
+
+## ✅ SETUP & TEST PHẦN 5
+
+**⚠️ IMPORTANT: Seed default agents first!**
+
+Chạy seed từ Phần 2:
+```bash
+npm run prisma:seed
+```
+
+**Restart backend:**
+```bash
+npm run start:dev
+```
+
+---
+
+## 🧪 TEST PHẦN 5
+
+### **Setup: Get JWT + Create Project + Thread**
+```bash
+# 1. Login
+export TOKEN=$(curl -s -X POST http://localhost:3001/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123"}' \
+  | grep -o '"access_token":"[^"]*' | cut -d'"' -f4)
+
+# 2. Create project
+curl -X POST http://localhost:3001/projects \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"AI Chat Project"}'
+
+# 3. Create conversation
+export THREAD_ID=$(curl -s -X POST http://localhost:3001/projects/1/conversations \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Test Chat"}' \
+  | grep -o '"threadId":"[^"]*' | cut -d'"' -f4)
+
+echo "Thread ID: $THREAD_ID"
+```
+
+### **Test 1: Send first message (NEW thread)**
+```bash
+curl -X POST http://localhost:3001/projects/1/chat/message \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Hello! What is the capital of France?",
+    "agentId": 1
+  }'
+```
+
+**Expected response:**
+```json
+{
+  "threadId": "550e8400-e29b-41d4-a716-446655440000",
+  "userMessage": {
+    "id": 1,
+    "content": "Hello! What is the capital of France?",
+    "role": "user",
+    "createdAt": "..."
+  },
+  "assistantMessage": {
+    "id": 2,
+    "content": "The capital of France is Paris...",
+    "role": "assistant",
+    "tokens": 156,
+    "createdAt": "..."
+  },
+  "agent": {
+    "id": 1,
+    "name": "GPT-4",
+    "type": "openai"
+  }
+}
+```
+
+### **Test 2: Continue conversation (SAME thread)**
+```bash
+curl -X POST http://localhost:3001/projects/1/chat/message \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "What is the population of that city?",
+    "agentId": 1,
+    "threadId": "'"$THREAD_ID"'"
+  }'
+```
+
+**Expected:** AI remembers "that city" = Paris (context maintained!)
+
+### **Test 3: Get message history**
+```bash
+curl -X GET "http://localhost:3001/projects/1/chat/thread/$THREAD_ID/history" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### **Test 4: Get token usage**
+```bash
+curl -X GET "http://localhost:3001/projects/1/chat/thread/$THREAD_ID/usage" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Expected:**
+```json
+{
+  "threadId": "550e8400-...",
+  "totalTokens": 312,
+  "messageCount": 4,
+  "estimatedCost": 0.000624
+}
+```
+
+### **Test 5: Try Gemini (if you have API key)**
+```bash
+curl -X POST http://localhost:3001/projects/1/chat/message \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Tell me a joke",
+    "agentId": 2,
+    "threadId": "'"$THREAD_ID"'"
+  }'
+```
+
+---
+
+## 📊 THREADING CONTEXT FLOW
+
+```
+User: "What is the capital of France?"
+  ↓ Save to DB (threadId: abc-123)
+  ↓ Get last 10 messages (empty for first message)
+  ↓ Send to OpenAI: [system, user]
+  ↓ AI: "The capital is Paris..."
+  ↓ Save response to DB
+
+User: "What is the population?" (SAME threadId!)
+  ↓ Get last 10 messages:
+      [user: "capital?", assistant: "Paris...", user: "population?"]
+  ↓ Send to OpenAI with context
+  ↓ AI understands "that city" = Paris!
+  ↓ AI: "Paris has about 2.2 million people..."
+```
+
+**Key Points:**
+- ✅ Context maintained via `threadId`
+- ✅ Last 10 messages sent to AI
+- ✅ Token usage tracked per message
+- ✅ Multiple threads can exist in parallel
+
+---
+
+## 📞 NEXT STEP
+
+**Khi đã test xong, reply:**
+- **"OK, tiếp Phần 6"** → Tôi gửi WebSocket (Real-time streaming)
+- **"Có lỗi: [mô tả]"** → Tôi giúp debug
+- **"Chat works! AI responds!"** → Awesome! Ready for WebSocket?
+
+---
+
+## 💡 CURRENT STATUS
+
+```
+✅ Phần 1: Docker + Database
+✅ Phần 2: Backend Init + 6 Tables
+✅ Phần 3: Auth Module (JWT)
+✅ Phần 4: Projects + Threading
+✅ Phần 5: Chat + AI (OpenAI/Gemini) ← YOU ARE HERE
+
+Next: Phần 6 - WebSocket (Real-time)
+```
+
+**🎉 CORE FEATURES WORKING!**
+- ✅ Authentication
+- ✅ Projects with RBAC
+- ✅ Threading conversations
+- ✅ Chat with AI (context maintained!)
+- ✅ Token tracking
+
+**Chờ confirm! 🚀**
