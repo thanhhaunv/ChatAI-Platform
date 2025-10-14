@@ -41,7 +41,7 @@ services:
     container_name: chatai-pgadmin
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@chatai.local
+      PGADMIN_DEFAULT_EMAIL: admin@chatai.com
       PGADMIN_DEFAULT_PASSWORD: admin123
     ports:
       - '5050:80'
@@ -51,3 +51,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  pgadmin_data:

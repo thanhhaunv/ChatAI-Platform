@@ -10,6 +10,11 @@ import { ConversationsModule } from '../conversations/conversations.module';
   imports: [PrismaModule, ConversationsModule],
   controllers: [ChatController],
   providers: [ChatService, OpenAIService, GeminiService],
-  exports: [ChatService],
+  exports: [
+    ChatService,
+    OpenAIService,
+    GeminiService
+  ]
+    ,
 })
 export class ChatModule {}
