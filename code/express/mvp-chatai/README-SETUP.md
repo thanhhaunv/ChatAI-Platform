@@ -64,7 +64,7 @@ services:
     container_name: chatai-pgadmin
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@chatai.local
+      PGADMIN_DEFAULT_EMAIL: admin@chatai.com
       PGADMIN_DEFAULT_PASSWORD: admin123
     ports:
       - '5050:80'
@@ -74,6 +74,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  pgadmin_data:
 ```
 
 ---
@@ -219,7 +220,7 @@ sudo docker exec -it -e PGPASSWORD=chatai123 chatai-postgres psql -U chatai -d c
 ```
 
 ### Option B: Dùng pgAdmin
-1. Mở: http://localhost:5050
+1. Mở: http://localhost:5050 hoặc lấy ip local nếu không được (ip addr show | grep inet) hoặc http://127.0.0.1:5050
 2. Login: `admin@chatai.local` / `admin123`
 3. Add server:
    - Name: ChatAI Local
