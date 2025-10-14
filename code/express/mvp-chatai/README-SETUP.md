@@ -792,6 +792,27 @@ Bạn sẽ thấy 6 tables:
 curl http://localhost:3001
 ```
 
+**Test 2: Auth Signup (QUAN TRỌNG!)
+```bash
+curl -X POST http://localhost:3001/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Test User",
+    "email": "test@example.com",
+    "password": "password123"
+  }'
+```
+
+**Test 3: Auth Login
+```bash
+curl -X POST http://localhost:3001/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "test@example.com",
+    "password": "password123"
+  }'
+```
+
 **Test 3: Seed sample agent (Optional)**
 
 Tạo file `backend/prisma/seed.ts`:
