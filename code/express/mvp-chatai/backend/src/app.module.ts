@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { AppController } from './app.controller'; // ← THÊM
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { ProjectsModule } from './projects/projects.module';
 import { ConversationsModule } from './conversations/conversations.module';
 import { ChatModule } from './chat/chat.module';
 import { WebsocketModule } from './websocket/websocket.module';
-import { FilesModule } from './files/files.module'; // ← ADD
+import { FilesModule } from './files/files.module';
 
 @Module({
   imports: [
@@ -19,7 +20,8 @@ import { FilesModule } from './files/files.module'; // ← ADD
     ConversationsModule,
     ChatModule,
     WebsocketModule,
-    FilesModule, // ← ADD
+    FilesModule,
   ],
+  controllers: [AppController], // ← THÊM
 })
 export class AppModule {}
