@@ -212,6 +212,10 @@ Bạn sẽ thấy 3 containers:
 ### Option A: Dùng psql (nếu có)
 ```bash
 psql postgresql://chatai:chatai123@localhost:5432/chatai_mvp
+
+or
+
+sudo docker exec -it -e PGPASSWORD=chatai123 chatai-postgres psql -U chatai -d chatai_mvp
 ```
 
 ### Option B: Dùng pgAdmin
