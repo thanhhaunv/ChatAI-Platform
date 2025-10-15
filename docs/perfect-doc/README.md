@@ -30,7 +30,7 @@ docs/
 └── 10-adr/                   # Architecture Decision Records
 ```
 
-```
+## 📂 Documentation Structure detail
 ```
 docs/
 ├── 📂 01-requirements/
