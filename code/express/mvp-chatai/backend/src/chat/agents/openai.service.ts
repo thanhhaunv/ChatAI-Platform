@@ -65,6 +65,24 @@ export class OpenAIService {
     }
 
     try {
+      console.error(`Log post OpenAI:`, JSON.stringify({
+        endPoint: `${this.baseUrl}/chat/completions`,
+        message: {
+          model: model,
+          messages: messages,
+          temperature: 0.7,
+          max_tokens: 1000,
+          stream: true,
+        },
+        header: {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          responseType: 'stream',
+        }
+      }));
+      
       const response = await axios.post(
         `${this.baseUrl}/chat/completions`,
         {
