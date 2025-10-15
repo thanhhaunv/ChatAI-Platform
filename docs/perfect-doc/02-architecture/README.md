@@ -158,21 +158,53 @@
 ---
 
 ### **File 6: 06-Architecture-Guidelines.md** ⭐
-**Nội dung:** Interface-First Development rules
+**Nội dung:** Interface-First Development + Design Patterns
 
 **Sections bắt buộc:**
 1. Introduction
 2. **Interface-First Development** (philosophy, workflow, rules)
-3. Mandatory Design Patterns (Repository, Strategy, Facade, Observer)
+3. **Mandatory Design Patterns** (EXPANDED - 8+ patterns)
+   
+   **3.1 Creational Patterns**
+   - **Factory Pattern:** Create agents dynamically (OpenAI, Gemini, Custom)
+   - **Singleton Pattern:** Config service, Logger (one instance)
+   
+   **3.2 Structural Patterns**
+   - **Repository Pattern:** Database access abstraction (IUserRepository)
+   - **Facade Pattern:** API Gateway simplifies microservices access
+   - **Adapter Pattern:** External API wrappers (OpenAI → IAgentStrategy)
+   - **Decorator Pattern:** Add features to agents (logging, caching, retry)
+   
+   **3.3 Behavioral Patterns**
+   - **Strategy Pattern:** AI agent implementations (OpenAI vs Gemini vs Custom)
+   - **Observer Pattern:** Real-time notifications (WebSocket subscribers)
+   - **Chain of Responsibility:** Middleware pipeline (auth → rate-limit → routing)
+   - **Command Pattern:** Queue async tasks (billing logs, email notifications)
+   
+   **Each pattern must have:**
+   - Problem it solves
+   - UML diagram (Mermaid)
+   - TypeScript code example (compilable)
+   - When to use / when NOT to use
+   - Real use case in project (which service uses it)
+
 4. Service Communication Rules
 5. Error Handling Standards
 6. Async/Concurrency Patterns
+7. **Anti-Patterns** (NEW - What NOT to do)
+   - God Object (one class does everything)
+   - Circular dependencies
+   - Spaghetti code (no clear structure)
+   - Hardcoding values
+   - Not using interfaces
 
 **Core principle:** Write interfaces BEFORE implementation
 
 **Checklist:**
 - [ ] Interface-First explained với examples
-- [ ] 4+ design patterns documented
+- [ ] **8+ design patterns documented** (was 4, now 8+) ⭐
+- [ ] Each pattern có: problem, diagram, code example, use case
+- [ ] Anti-patterns listed với examples
 - [ ] Error hierarchy defined
 - [ ] Async patterns với AsyncGenerator
 - [ ] TypeScript examples compilable
