@@ -1,387 +1,662 @@
 # Business Requirements Document (BRD)
 
-**Document Information**
-- **Version:** 1.0.0
-- **Last Updated:** October 15, 2025
-- **Document Owner:** Product Owner / Business Analyst
-- **Status:** ✅ Approved
-- **Approvers:** PM, Stakeholders
+> **Thông tin tài liệu**  
+> **Dự án:** ChatAI Platform  
+> **Phiên bản:** 1.0  
+> **Ngày:** 15 tháng 10, 2025  
+> **Tác giả:** BA/PO Team  
+> **Trạng thái:** Đã phê duyệt
 
 ---
 
-## Table of Contents
+## 📋 Mục lục
 
-1. [Executive Summary](#1-executive-summary)
-2. [Project Background](#2-project-background)
-3. [Business Objectives](#3-business-objectives)
-4. [Stakeholders](#4-stakeholders)
-5. [Scope](#5-scope)
-6. [High-Level Requirements](#6-high-level-requirements)
-7. [Success Criteria](#7-success-criteria)
-8. [Constraints & Assumptions](#8-constraints--assumptions)
-9. [Risks](#9-risks)
-10. [Appendix](#10-appendix)
+1. [Tóm tắt điều hành](#1-tóm-tắt-điều-hành)
+2. [Mục tiêu dự án](#2-mục-tiêu-dự-án)
+3. [Stakeholders](#3-stakeholders)
+4. [Yêu cầu high-level](#4-yêu-cầu-high-level)
+5. [Phạm vi dự án](#5-phạm-vi-dự-án)
+6. [Tiêu chí thành công](#6-tiêu-chí-thành-công)
+7. [Giả định và ràng buộc](#7-giả-định-và-ràng-buộc)
+8. [Phê duyệt](#8-phê-duyệt)
 
 ---
 
-## 1. Executive Summary
+## 1. Tóm tắt điều hành
 
-### 1.1 Project Name
-**ChatAI Platform** - Multi-Agent AI Chat System
+### 1.1 Mục tiêu tổng quan
 
-### 1.2 Project Overview
-Build a comprehensive AI chat platform (Web + Mobile) that enables users to interact with multiple AI agents (OpenAI GPT, Google Gemini, Grok, and custom self-hosted agents). The platform supports text, voice, and file inputs, project-based conversation management, usage billing, and ML training capabilities through a scalable microservices architecture.
+Xây dựng nền tảng chat AI (Web + Mobile app) cho phép người dùng chat với nhiều AI agent (GPT, Grok, Gemini, và các agent tự build), hỗ trợ text/voice/upload file, quản lý agent, thống kê chi phí/token, và mở rộng bằng microservices. Hỗ trợ quản lý context cuộc hội thoại qua threads để AI trace và maintain lịch sử chat.
 
-### 1.3 Business Value
-- **For End Users:** Single unified interface to interact with multiple AI providers
-- **For Enterprises:** Control over AI costs, self-hosted agents for data privacy
-- **For Developers:** Extensible platform to build and deploy custom AI agents
-- **For Business:** Scalable SaaS model with usage-based billing
+### 1.2 Giá trị kinh doanh
 
-### 1.4 Key Deliverables
-- Web application (Next.js)
-- Mobile application (iOS + Android via React Native)
-- Backend microservices (8 services)
-- Agent management system
-- ML training pipeline
-- Admin dashboard
+**Business Value:**
+- **Tăng năng suất:** Cung cấp AI assistants thông minh cho công việc hàng ngày
+- **Minh bạch chi phí:** Quản lý chi phí sử dụng AI rõ ràng theo user/project/agent
+- **Tùy biến linh hoạt:** Training và deploy AI agents theo nhu cầu riêng của tổ chức
+- **Đa nền tảng:** Hỗ trợ làm việc trên Web, iOS, Android
+- **Khả năng mở rộng:** Kiến trúc microservices sẵn sàng scale khi cần
 
----
+### 1.3 Bối cảnh dự án
 
-## 2. Project Background
-
-### 2.1 Business Context
-Organizations and individuals require a flexible AI chat solution that:
-- Supports multiple AI providers (avoiding vendor lock-in)
-- Maintains conversation context across threads
-- Provides cost transparency through billing reports
-- Allows custom agent deployment for proprietary use cases
-
-### 2.2 Problem Statement
-Current AI chat solutions face limitations:
-- ❌ Single provider dependency (OpenAI, Claude, etc.)
-- ❌ No conversation threading/context management
-- ❌ Limited customization for enterprise needs
-- ❌ Poor cost visibility and control
-- ❌ No support for self-hosted/custom models
-
-### 2.3 Proposed Solution
-A multi-tenant platform that:
-- ✅ Integrates multiple AI providers seamlessly
-- ✅ Manages conversation context via threads
-- ✅ Supports self-hosted agent deployment
-- ✅ Provides detailed usage analytics and billing
-- ✅ Enables ML model training and deployment
+Trong bối cảnh AI ngày càng phát triển, các tổ chức cần một platform thống nhất để:
+- Tích hợp nhiều AI providers (không bị lock-in một vendor)
+- Quản lý chi phí API AI một cách tập trung
+- Tùy chỉnh và training AI models riêng cho domain cụ thể
+- Duy trì lịch sử và context cuộc hội thoại để AI hiểu rõ hơn
 
 ---
 
-## 3. Business Objectives
+## 2. Mục tiêu dự án
 
-### 3.1 Primary Objectives
-1. **Market Entry:** Launch MVP within 6 months (22 weeks)
-2. **User Acquisition:** Onboard 100+ beta users in first month
-3. **Revenue:** Generate $10K MRR within 3 months post-launch
-4. **Platform Adoption:** Support 5+ AI agent providers
+### 2.1 Mục tiêu chính (Primary Goals)
 
-### 3.2 Secondary Objectives
-1. Enable enterprise customers to deploy self-hosted agents
-2. Build developer ecosystem for custom agent marketplace
-3. Achieve 99.9% uptime SLA
-4. Support 10,000 concurrent users
+1. **Multi-Agent Support**
+   - Tích hợp nhiều AI providers: OpenAI GPT-4, Google Gemini, Grok
+   - Hỗ trợ custom agents tự build và deploy
+   - Cho phép user chọn agent phù hợp với từng task
 
-### 3.3 Strategic Alignment
-Aligns with company strategy to:
-- Expand AI service offerings
-- Build scalable SaaS products
-- Enter enterprise AI market
+2. **Context Management**
+   - Quản lý conversation threads để AI duy trì ngữ cảnh
+   - AI có thể trace và reference lịch sử chat
+   - Lưu trữ và tìm kiếm conversations hiệu quả
 
----
+3. **Multi-Platform**
+   - Web application (responsive, desktop + mobile web)
+   - Mobile app native (iOS + Android qua React Native)
+   - Đồng bộ data giữa các platform
 
-## 4. Stakeholders
+4. **Scalability**
+   - Kiến trúc microservices để scale độc lập
+   - Handle 10k concurrent users
+   - Horizontal scaling cho từng service
 
-### 4.1 Internal Stakeholders
+5. **Cost Tracking**
+   - Thống kê chi phí và token usage chi tiết
+   - Filter theo user/project/agent/conversation
+   - Export reports (CSV/PDF)
 
-| Role | Name | Responsibility | Involvement |
-|------|------|----------------|-------------|
-| **Product Owner** | TBD | Define requirements, prioritize features | High |
-| **Project Manager** | thanhhaunv | Manage timeline, budget, resources | High |
-| **Development Lead** | TBD | Technical architecture, code quality | High |
-| **Backend Developers** | TBD (2) | Implement microservices | High |
-| **Frontend Developer** | TBD | Build web/mobile apps | High |
-| **DevOps Engineer** | TBD | Infrastructure, CI/CD, deployment | Medium |
-| **ML Engineer** | TBD | ML training pipeline | Medium |
-| **QA/Tester** | TBD | Quality assurance, testing | High |
+### 2.2 Mục tiêu phụ (Secondary Goals)
 
-### 4.2 External Stakeholders
-
-| Role | Organization | Interest | Involvement |
-|------|--------------|----------|-------------|
-| **Legal Counsel** | Legal Team | Data privacy (GDPR), compliance | Medium |
-| **Finance** | Finance Dept | Billing accuracy, revenue tracking | Medium |
-| **End Users** | Beta Testers | Product feedback, usability | High (Beta) |
-| **Enterprise Clients** | TBD | Self-hosted agents, security | Medium |
-
-### 4.3 Communication Plan
-- **Weekly Standups:** Full team (Mon/Wed/Fri)
-- **Sprint Reviews:** End of each 2-week sprint
-- **Stakeholder Updates:** Monthly to Legal/Finance
-- **Beta Feedback:** Bi-weekly surveys
+- **Self-hosted agents deployment:** Deploy agents qua Docker containers
+- **ML training pipeline:** Training custom agents với Hugging Face
+- **Voice support:** Input qua STT, output qua TTS
+- **File processing:** Upload và extract context từ PDF/DOCX/images
+- **Real-time features:** WebSocket cho chat streaming và notifications
 
 ---
 
-## 5. Scope
+## 3. Stakeholders
 
-### 5.1 In Scope
+### 3.1 Bảng stakeholders chi tiết
 
-#### 5.1.1 Core Features
-- ✅ User authentication (Email, Phone, Google, Facebook, TikTok OAuth)
-- ✅ Multi-tenant project management with RBAC (Owner, Editor, Viewer)
-- ✅ Conversation threading for context management
-- ✅ Multi-agent chat interface (text, voice, file upload)
-- ✅ Agent management (CRUD, API key configuration, version tracking)
-- ✅ Self-hosted agent deployment via Docker
-- ✅ ML model training pipeline (Hugging Face integration)
-- ✅ Usage billing and cost reporting (per project/user/agent)
-- ✅ Real-time notifications (WebSocket)
-- ✅ Web application (responsive design)
-- ✅ Mobile application (iOS + Android)
+| Vai trò | Phòng ban | Trách nhiệm | Liên hệ | Mức độ tham gia |
+|---------|-----------|-------------|---------|-----------------|
+| **Client/Product Owner** | Business | Định nghĩa requirements, phê duyệt deliverables, quyết định scope | TBD | Cao - Daily |
+| **Project Manager** | PMO | Quản lý timeline, budget, điều phối team | thanhhaunv | Cao - Daily |
+| **Business Analyst** | BA Team | Thu thập requirements, viết documentation | TBD | Cao - Daily |
+| **Development Team** | Engineering | Implementation code, technical decisions | TBD | Cao - Daily |
+| **Tech Lead/Architect** | Engineering | Thiết kế kiến trúc, code review, technical guidance | TBD | Cao - Daily |
+| **DevOps Team** | Operations | Infrastructure, deployment, monitoring | TBD | Trung bình - Weekly |
+| **Data Science Team** | ML/AI | ML training, model optimization, agent tuning | TBD | Trung bình - Weekly |
+| **QA/Tester** | Quality | Testing, bug reports, quality assurance | TBD | Cao - Daily |
+| **Legal Team** | Compliance | Privacy (GDPR), data protection, compliance | TBD | Thấp - Monthly |
+| **Finance Team** | Finance | Billing logic, cost management, budget approval | TBD | Thấp - Monthly |
+| **End Users** | Customers | Use platform, provide feedback | TBD | Cao - Post-launch |
 
-#### 5.1.2 Non-Functional Requirements
-- ✅ Scalability: Support 10,000 concurrent users
-- ✅ Security: OAuth2/JWT, data encryption (at rest & in transit)
-- ✅ Performance: <2s median response time, <10s for external API calls
-- ✅ Observability: Logs, metrics, traces (Prometheus, Grafana)
-- ✅ Availability: 99.9% uptime
-- ✅ Compliance: GDPR-like data privacy for voice/files
-- ✅ Accessibility: WCAG 2.1 AA compliance
+### 3.2 Stakeholder Communication Plan
 
-#### 5.1.3 Supported Platforms
-- Web: Chrome, Firefox, Safari, Edge (latest 2 versions)
-- Mobile: iOS 14+, Android 10+
-
-#### 5.1.4 Supported AI Providers (MVP)
-- OpenAI (GPT-3.5, GPT-4)
-- Google Gemini
-- Grok (X.AI)
-- Custom self-hosted agents
-
-### 5.2 Out of Scope (Future Phases)
-- ❌ Video chat integration
-- ❌ Agent marketplace (monetization for custom agents)
-- ❌ Advanced analytics dashboard (beyond basic billing)
-- ❌ Multi-language support (Phase 2)
-- ❌ Desktop application (Electron)
-- ❌ Integration with enterprise systems (Slack, Teams) - Future
-
-### 5.3 Assumptions
-1. Third-party AI APIs (OpenAI, Gemini) remain available and stable
-2. Users have stable internet connection (minimum 3G)
-3. Browser supports modern JavaScript (ES6+)
-4. Docker/Kubernetes available for self-hosted deployments
+| Stakeholder | Frequency | Method | Content |
+|-------------|-----------|--------|---------|
+| Client/PO | Daily | Email, Slack | Progress updates, blockers |
+| PM/Tech Lead | Daily | Standup, Slack | Task status, technical decisions |
+| Dev Team | Daily | Standup, Jira | Tasks, code reviews |
+| Legal/Finance | Monthly | Meeting | Compliance, billing updates |
+| End Users | Post-launch | Email, Support | Onboarding, feature updates |
 
 ---
 
-## 6. High-Level Requirements
+## 4. Yêu cầu high-level
 
-### 6.1 Functional Requirements
+### 4.1 Yêu cầu chức năng (Functional Requirements)
 
-#### FR-1: User Management
-- **FR-1.1:** Users can sign up via email, phone, or OAuth (Google, Facebook, TikTok)
-- **FR-1.2:** Email/phone verification required
-- **FR-1.3:** Password reset functionality
-- **FR-1.4:** User profile management (name, avatar, settings)
+#### 4.1.1 Authentication & Authorization
 
-#### FR-2: Project & Team Management
-- **FR-2.1:** Users can create multiple projects
-- **FR-2.2:** Project owners can invite members with roles (Owner, Editor, Viewer)
-- **FR-2.3:** Role-based access control (RBAC) for all project actions
-- **FR-2.4:** Project members can view/edit based on permissions
+**FR-001: Multi-provider OAuth**
+- Hỗ trợ đăng ký/đăng nhập qua:
+  - Google OAuth 2.0
+  - Facebook OAuth 2.0
+  - TikTok OAuth 2.0
+  - Email/Password (với email verification)
+  - Phone Number (với SMS verification)
+- Session management với JWT tokens
+- Token expiry: 1 giờ (với refresh token 7 ngày)
 
-#### FR-3: Conversation Threading
-- **FR-3.1:** Each project contains multiple conversation threads
-- **FR-3.2:** Thread maintains context across messages (thread_id passed to AI)
-- **FR-3.3:** Users can create, rename, delete threads
-- **FR-3.4:** Thread history persists and is searchable
+**FR-002: Role-based Access Control (RBAC)**
+- Roles: Admin, Owner, Member, Viewer
+- Permissions matrix:
+  - Admin: Full access toàn hệ thống
+  - Owner: Quản lý project, invite members, billing
+  - Member: Chat, view project, limited settings
+  - Viewer: Read-only access
 
-#### FR-4: Multi-Modal Chat Interface
-- **FR-4.1:** Text input with rich text support (Markdown)
-- **FR-4.2:** Voice input via Web Speech API / Whisper (STT)
-- **FR-4.3:** Text-to-Speech (TTS) output for AI responses
-- **FR-4.4:** File upload (PDF, TXT, DOCX, images) for context
-- **FR-4.5:** Real-time streaming of AI responses (WebSocket)
+#### 4.1.2 Chat Interface
 
-#### FR-5: Agent Management
-- **FR-5.1:** Admin can add/edit/delete AI agents
-- **FR-5.2:** Agent configuration includes: name, type (external/self-hosted), API endpoint, credentials
-- **FR-5.3:** Version tracking for agents
-- **FR-5.4:** Test connection functionality
-- **FR-5.5:** Agent status monitoring (active/inactive)
+**FR-003: Multi-modal Chat**
+- **Text chat:**
+  - Input qua text box
+  - Support markdown formatting
+  - Code syntax highlighting
+  - Real-time streaming responses
+- **Voice chat:**
+  - Voice input qua STT (Speech-to-Text)
+  - Voice output qua TTS (Text-to-Speech)
+  - Hỗ trợ nhiều ngôn ngữ (VN, EN)
+- **File upload:**
+  - Support: PDF, TXT, DOCX, images (PNG, JPG)
+  - Max file size: 10MB
+  - Extract context từ files cho AI
 
-#### FR-6: Self-Hosted Agent Deployment
-- **FR-6.1:** Upload Docker image for custom agents
-- **FR-6.2:** Start/stop agent containers
-- **FR-6.3:** Health check monitoring
-- **FR-6.4:** Resource allocation (CPU, memory)
+**FR-004: Agent Selection**
+- Dropdown list các agents available
+- Hiển thị thông tin agent:
+  - Name, version, description
+  - Cost per token (nếu có)
+  - Capabilities (text/voice/file)
+- Switch agent giữa conversations
 
-#### FR-7: ML Training Pipeline
-- **FR-7.1:** Upload training datasets
-- **FR-7.2:** Select base model (Hugging Face)
-- **FR-7.3:** Configure training parameters (epochs, batch size, learning rate)
-- **FR-7.4:** Monitor training progress
-- **FR-7.5:** Deploy trained model as self-hosted agent
+#### 4.1.3 Project & Thread Management
 
-#### FR-8: Billing & Reporting
-- **FR-8.1:** Log token usage per message
-- **FR-8.2:** Calculate cost per project/user/agent/conversation
-- **FR-8.3:** Generate usage reports (CSV export)
-- **FR-8.4:** Filter reports by date range, project, user, agent
-- **FR-8.5:** Real-time cost display in UI
+**FR-005: Multi-tenant Projects**
+- User có thể tạo nhiều projects
+- Mỗi project có:
+  - Name, description, icon
+  - Members với roles khác nhau
+  - Billing riêng biệt
+  - Settings riêng (default agent, permissions)
 
-#### FR-9: Notifications
-- **FR-9.1:** Real-time notifications for new messages (WebSocket)
-- **FR-9.2:** Email notifications for mentions/invites
-- **FR-9.3:** Notification preferences (enable/disable)
+**FR-006: Conversation Threading**
+- Mỗi project có nhiều threads (conversations)
+- Thread có:
+  - Title (auto-generated hoặc user-defined)
+  - thread_id (UUID để track context)
+  - Created date, last updated
+  - Message count, participants
+- AI duy trì context trong thread:
+  - Gửi thread_id khi call AI API
+  - Retrieve last N messages làm context
+  - Support context window optimization
 
-### 6.2 Non-Functional Requirements
+**FR-007: Thread Operations**
+- Create new thread
+- Rename thread
+- Archive/Delete thread (soft delete)
+- Search threads (by title, content, date)
+- Pin important threads
 
-#### NFR-1: Performance
-- Median response time: <2s (cached data)
-- External API calls: <10s
-- Voice transcription accuracy: >90%
-- Support 10,000 concurrent users
-- Database queries: <100ms (indexed)
+#### 4.1.4 Agent Management
 
-#### NFR-2: Security
-- OAuth2 + JWT authentication
-- Token expiry: 1 hour (access), 7 days (refresh)
-- Passwords: bcrypt hashing (cost factor 10)
-- API keys: encrypted at rest (AES-256)
-- TLS 1.3 for data in transit
-- RBAC enforced at API level
-- Input validation (prevent SQL injection, XSS)
-- Rate limiting: 100 req/min per user
+**FR-008: Agent CRUD (Admin/Owner only)**
+- **Create agent:**
+  - Name, type (external/self-hosted)
+  - API endpoint, credentials
+  - Model source (OpenAI/Gemini/Custom)
+  - Config (temperature, max_tokens, etc.)
+- **Read agent:**
+  - List all agents
+  - View agent details, version
+  - Test connection status
+- **Update agent:**
+  - Modify config, credentials
+  - Update Docker image (self-hosted)
+- **Delete agent:**
+  - Soft delete, archive
 
-#### NFR-3: Scalability
-- Horizontal scaling via Kubernetes
-- Stateless microservices design
-- Redis for caching and queues
-- PostgreSQL with read replicas
-- CDN for static assets
+**FR-009: Self-hosted Agent Deployment**
+- Upload Docker image cho custom agent
+- Configure container:
+  - Environment variables
+  - Port mapping
+  - Resource limits (CPU, RAM)
+- Start/Stop/Restart container
+- Health check endpoint
+- View logs
 
-#### NFR-4: Observability
-- Centralized logging (ELK Stack / CloudWatch)
-- Metrics: Prometheus + Grafana
-- Distributed tracing: Jaeger
-- Alerting: Slack/email on critical errors
-- Uptime monitoring: 99.9% SLA
+#### 4.1.5 Billing & Reporting
 
-#### NFR-5: Data Privacy
-- GDPR compliance (right to deletion, data export)
-- Voice recordings: encrypted, deletable
-- File uploads: scanned for malware (ClamAV)
-- User data: anonymized in analytics
+**FR-010: Token/Cost Tracking**
+- Log mỗi API call:
+  - user_id, project_id, agent_id
+  - conversation_id, thread_id
+  - tokens_used (input + output)
+  - cost (tính theo pricing của agent)
+  - timestamp
+
+**FR-011: Billing Reports**
+- View usage dashboard:
+  - Cost by user/project/agent
+  - Token usage charts (line, bar)
+  - Time range filter (day/week/month/year)
+- Export reports:
+  - CSV format
+  - PDF format (optional)
+- Billing breakdown:
+  - Per conversation/thread
+  - Per user
+  - Per project
+
+#### 4.1.6 ML Training Pipeline
+
+**FR-012: Model Training**
+- Upload base model từ Hugging Face
+- Config training params:
+  - Dataset (upload hoặc URL)
+  - Epochs, batch size, learning rate
+  - Validation split
+- AI-assisted config suggestions:
+  - Integrate với AI khác để suggest optimal params
+  - Based on dataset size, model type
+- Monitor training progress:
+  - Real-time loss/accuracy charts
+  - Estimated time remaining
+  - Stop training anytime
+
+**FR-013: Model Deployment**
+- Auto-generate Docker image sau training
+- Deploy trained model as self-hosted agent
+- Version control cho models
+
+### 4.2 Yêu cầu phi chức năng (Non-Functional Requirements)
+
+#### 4.2.1 Performance (NFR-001)
+
+**Scalability:**
+- Handle 10,000 concurrent users
+- Horizontal scaling cho từng microservice
+- Auto-scaling dựa trên load (CPU > 70%)
+
+**Response Time:**
+- Median response time < 2s cho cached agents
+- < 10s cho remote API calls (OpenAI, Gemini)
+- Real-time streaming latency < 500ms
+- Database query < 100ms (95th percentile)
+
+**Throughput:**
+- 1,000 requests/second cho API Gateway
+- 100 messages/second cho Chat Orchestrator
+
+**Availability:**
+- 99.5% uptime SLA (monthly)
+- Max downtime: 3.6 hours/month
+- Scheduled maintenance window: Sundays 2-4 AM
+
+#### 4.2.2 Security (NFR-002)
+
+**Authentication:**
+- OAuth2 + OpenID Connect
+- JWT tokens với HMAC-SHA256
+- Token expiry: 1 hour access token, 7 days refresh token
+- Secure cookie storage (HttpOnly, Secure, SameSite)
+
+**Authorization:**
+- Role-based access control (RBAC)
+- Permission checks trên mỗi API endpoint
+- Audit logs cho sensitive operations
+
+**Data Protection:**
+- Encrypt API keys at rest (AES-256)
+- TLS 1.3 for data in transit (HTTPS)
+- Encrypt sensitive fields trong database (passwords, tokens)
+- Hash passwords với bcrypt (cost factor 10)
+
+**Compliance:**
+- OWASP Top 10 compliance
+- Regular security scans (OWASP ZAP, Snyk)
+- Penetration testing before production
+- GDPR-like compliance cho user data
+
+#### 4.2.3 Observability (NFR-003)
+
+**Metrics:**
+- Prometheus metrics collection
+- Grafana dashboards:
+  - Request rate, error rate, latency (RED metrics)
+  - CPU, memory, disk usage
+  - Database connections, query performance
+- Alerting rules:
+  - Error rate > 5% → Slack alert
+  - Response time > 5s → Email alert
+
+**Logging:**
+- Centralized logging (ELK Stack hoặc Loki)
+- Log levels: DEBUG, INFO, WARN, ERROR
+- Structured logging (JSON format)
+- Log retention: 30 days
+
+**Tracing:**
+- Distributed tracing (optional: Jaeger)
+- Trace request flow qua microservices
+- Identify bottlenecks
+
+#### 4.2.4 Data Privacy (NFR-004)
+
+**User Data:**
+- User consent cho data collection
+- Right to access data
+- Right to delete data (GDPR Article 17)
+- Data retention policy: 1 year inactive → delete
+
+**Voice/File Privacy:**
+- Encrypt uploaded files at rest
+- Auto-delete files after 30 days (optional)
+- No third-party sharing without consent
+
+#### 4.2.5 Usability (NFR-005)
+
+**Accessibility:**
+- WCAG 2.1 AA compliance
+- Screen reader support
+- Keyboard navigation
+- High contrast mode
+
+**Internationalization:**
+- Support multiple languages (Vietnamese, English)
+- i18n framework (react-i18next)
+- Date/time localization
+
+**User Experience:**
+- Responsive design (mobile-first)
+- Loading states, error messages
+- Smooth animations (<16ms)
+- Offline mode (limited features)
+
+#### 4.2.6 DevOps (NFR-006)
+
+**CI/CD:**
+- Automated pipeline (GitHub Actions)
+- Build → Test → Lint → Deploy
+- Automated testing (unit, integration, E2E)
+- Code coverage > 70%
+
+**Infrastructure as Code:**
+- Terraform for cloud resources
+- Kubernetes manifests for deployments
+- Version control cho infrastructure
+
+**Deployment:**
+- Blue-green deployment
+- Rollback capability
+- Zero-downtime deployments
 
 ---
 
-## 7. Success Criteria
+## 5. Phạm vi dự án
 
-### 7.1 MVP Launch Criteria
-- ✅ All 10 User Stories (US-001 to US-010) implemented
-- ✅ Web + Mobile apps functional
-- ✅ 3+ AI providers integrated
-- ✅ Self-hosted agent deployment working
-- ✅ Billing reports accurate
-- ✅ Security audit passed (OWASP Top 10)
-- ✅ Load test: 10,000 concurrent users
-- ✅ Test coverage: >70%
+### 5.1 Trong phạm vi (In Scope)
 
-### 7.2 Business Metrics (3 months post-launch)
-- 100+ active users
-- $10K MRR
-- 50+ self-hosted agents deployed
-- <5% churn rate
-- NPS score: >50
+✅ **Core Features:**
+- Web application (Next.js, responsive)
+- Mobile application (React Native/Expo, iOS + Android)
+- Multi-agent chat system (OpenAI, Gemini, Grok, custom)
+- Conversation threading với context management
+- Voice input/output (STT/TTS)
+- File upload & processing (PDF, DOCX, images)
+- Agent management (external + self-hosted)
+- Billing & reporting (token/cost tracking)
+- ML training pipeline (Hugging Face integration)
+- OAuth authentication (Google, Facebook, TikTok, Email, Phone)
+- Real-time features (WebSocket streaming, notifications)
+- Basic admin panel (user management, agent management)
 
-### 7.3 Technical Metrics
-- Uptime: 99.9%
-- P95 response time: <5s
-- Bug density: <1 per 1000 LOC
-- Code quality: SonarQube Grade A
+✅ **Infrastructure:**
+- Microservices architecture (8 services)
+- Docker containerization
+- Kubernetes orchestration
+- PostgreSQL database
+- Redis cache
+- MinIO/S3 file storage
+- CI/CD pipeline (GitHub Actions)
+- Monitoring (Prometheus, Grafana)
+- Logging (ELK Stack)
+
+### 5.2 Ngoài phạm vi (Out of Scope)
+
+❌ **Advanced Features:**
+- Advanced analytics & BI dashboards
+- Third-party integrations (Slack, Microsoft Teams, etc.)
+- Video call support
+- Multi-language code execution (sandbox)
+- Advanced ML model marketplace
+- White-label solutions
+- Plugin system cho agents
+- Blockchain/Web3 features
+
+❌ **Business:**
+- Marketing campaigns
+- Sales operations
+- Customer acquisition
+- Payment gateway integration (Phase 2)
+
+### 5.3 Future Enhancements (Post-MVP)
+
+**Phase 2 (3-6 months post-launch):**
+- Plugin system for extensibility
+- Advanced analytics & insights
+- Team collaboration features (mentions, shares)
+- Marketplace for trained models
+- API for third-party developers
+- Payment integration (Stripe, PayPal)
+
+**Phase 3 (6-12 months post-launch):**
+- Enterprise features (SSO, audit logs)
+- Advanced security (2FA, IP whitelist)
+- White-label solution
+- Multi-region deployment
+- Advanced ML features (AutoML, model comparison)
 
 ---
 
-## 8. Constraints & Assumptions
+## 6. Tiêu chí thành công
 
-### 8.1 Constraints
-- **Budget:** $100K total project cost
-- **Timeline:** 22 weeks (6 months) to MVP
-- **Team Size:** 6 people (PM, 2 Backend, 1 Frontend, 1 DevOps, 1 QA)
-- **Technology Stack:** Must use NestJS (backend), Next.js (web), React Native (mobile)
-- **Compliance:** Must comply with GDPR
+### 6.1 Thành công về chức năng
 
-### 8.2 Assumptions
-- Third-party AI APIs remain available and stable
-- Users have internet access (minimum 3G)
-- Cloud infrastructure available (AWS/GCP)
-- Docker/K8s knowledge in team
+**Functional Success Criteria:**
+- ✅ Hoàn thành 100% User Stories (US-001 đến US-010)
+- ✅ 95%+ test coverage (unit + integration)
+- ✅ Pass tất cả acceptance criteria
+- ✅ Zero critical bugs trong production
+- ✅ All features demo được end-to-end
 
-### 8.3 Dependencies
-- OpenAI API access
-- Google Cloud (Gemini API)
-- OAuth provider credentials (Google, Facebook, TikTok)
-- Cloud hosting (AWS/GCP)
-- Payment gateway (Stripe) - Future
+### 6.2 Thành công về kỹ thuật
+
+**Technical Success Criteria:**
+- ✅ System handle 10,000 concurrent users (load test)
+- ✅ Response time < 2s (95th percentile)
+- ✅ 99.5% uptime achieved (monitored 30 days)
+- ✅ Security audit passed (OWASP, Snyk clean)
+- ✅ Code quality grade A (SonarQube)
+- ✅ CI/CD pipeline fully automated
+- ✅ Database optimized (indexes, query plans)
+
+### 6.3 Thành công về kinh doanh
+
+**Business Success Criteria:**
+- ✅ 10-20 beta users onboarded successfully
+- ✅ User satisfaction > 4.0/5.0 (survey)
+- ✅ Cost per user < target (TBD)
+- ✅ MVP launched trong 6 tháng
+- ✅ Zero data breaches
+- ✅ Positive stakeholder feedback
+
+### 6.4 Thành công về người dùng
+
+**User Success Criteria:**
+- ✅ User có thể chat với AI trong < 2 phút sau signup
+- ✅ User có thể tạo project và invite members
+- ✅ User có thể upload file và nhận AI analysis
+- ✅ User có thể train custom agent (advanced users)
+- ✅ User hiểu billing và cost breakdown
+- ✅ User có thể sử dụng trên cả web và mobile
 
 ---
 
-## 9. Risks
+## 7. Giả định và ràng buộc
 
-| Risk ID | Description | Impact | Probability | Mitigation |
-|---------|-------------|--------|-------------|------------|
-| R-01 | OpenAI API rate limits | High | Medium | Implement queue, fallback to other providers |
-| R-02 | Team member unavailability | High | Low | Cross-training, documentation |
-| R-03 | Security breach | Critical | Low | Security audit, penetration testing |
-| R-04 | Performance issues at scale | High | Medium | Load testing, horizontal scaling |
-| R-05 | Budget overrun | Medium | Medium | Weekly budget tracking, scope control |
-| R-06 | GDPR compliance failure | High | Low | Legal review, privacy-by-design |
-| R-07 | Third-party API downtime | Medium | Medium | Circuit breaker pattern, caching |
+### 7.1 Giả định (Assumptions)
+
+**Team:**
+- ✓ Team có 6 members full-time (PM, 2 Backend, 1 Frontend, 1 DevOps, 1 QA)
+- ✓ Team có kinh nghiệm với tech stack (NestJS, Next.js, K8s)
+- ✓ Team availability: 40 hours/week/person
+- ✓ Team có access đến tools (Jira, GitHub, AWS/GCP)
+
+**Infrastructure:**
+- ✓ Budget đủ cho cloud infrastructure costs (AWS hoặc GCP)
+- ✓ OpenAI, Google Gemini, Grok API keys available
+- ✓ Docker Hub registry access
+- ✓ Kubernetes cluster (EKS/GKE) provisioned
+
+**Users:**
+- ✓ Users có stable internet connection (>10 Mbps)
+- ✓ Users dùng modern browsers (Chrome 90+, Safari 14+, Firefox 88+)
+- ✓ Mobile users có iOS 14+ hoặc Android 10+
+- ✓ Users có basic tech literacy (biết dùng chat apps)
+
+**Third-party:**
+- ✓ OpenAI, Google APIs có 99%+ uptime
+- ✓ API pricing stable trong duration dự án
+- ✓ Hugging Face models accessible và miễn phí
+
+### 7.2 Ràng buộc (Constraints)
+
+**Timeline:**
+- ⏰ Fixed timeline: 22 weeks (~6 months)
+- ⏰ Milestone deadlines không thể shift quá 1 tuần
+- ⏰ Beta launch deadline: Week 22
+
+**Budget:**
+- 💰 Cloud infrastructure: ~$500-1000/month (estimate)
+- 💰 API costs: ~$200-500/month (OpenAI, Gemini)
+- 💰 Team costs: Fixed salary budget
+- 💰 Tool licenses: GitHub, Jira, monitoring tools
+
+**Technology:**
+- 🛠️ Must use TypeScript cho backend/frontend (client requirement)
+- 🛠️ Must use PostgreSQL (không dùng NoSQL)
+- 🛠️ Must use Kubernetes for production
+- 🛠️ Cannot use proprietary/closed-source libraries (except AI APIs)
+
+**Compliance:**
+- 📜 Must comply with GDPR for EU users
+- 📜 Data residency requirements (store trong Vietnam if VN users)
+- 📜 Privacy policy và Terms of Service required before launch
+- 📜 Legal review cho voice recording features
+
+**Resources:**
+- 👥 Limited to 6 team members (cannot hire more)
+- 💻 Limited compute resources (K8s cluster size fixed)
+- 📦 Limited storage budget (MinIO/S3)
+
+### 7.3 Dependencies (Phụ thuộc)
+
+**External:**
+- 🔗 OpenAI API availability và stability
+- 🔗 Google Cloud Platform account approval
+- 🔗 GitHub repository access
+- 🔗 Docker Hub registry access
+- 🔗 Domain name registration (chatai.com)
+- 🔗 SSL certificate (Let's Encrypt hoặc paid)
+
+**Internal:**
+- 🔗 Legal team approval cho privacy policy
+- 🔗 Finance team approval cho billing logic
+- 🔗 Stakeholder approval cho major technical decisions
+- 🔗 DevOps team setup infrastructure
 
 ---
 
-## 10. Appendix
+## 8. Phê duyệt
 
-### 10.1 Glossary
-- **Agent:** AI model/service that responds to user queries
-- **Thread:** Conversation context container (linked messages)
-- **RBAC:** Role-Based Access Control
-- **STT:** Speech-to-Text
-- **TTS:** Text-to-Speech
-- **WebSocket:** Real-time bidirectional communication protocol
+### 8.1 Signature Table
 
-### 10.2 Related Documents
-- [Software Requirements Specification (SRS)](02-SRS.md)
-- [User Stories](03-User-Stories.md)
+| Vai trò | Tên | Chữ ký | Ngày |
+|---------|-----|--------|------|
+| **Product Owner** | TBD | _________ | ______ |
+| **Project Manager** | thanhhaunv | _________ | 15/10/2025 |
+| **Technical Lead** | TBD | _________ | ______ |
+| **Business Stakeholder** | TBD | _________ | ______ |
+| **Legal Representative** | TBD | _________ | ______ |
+
+### 8.2 Change Request Process
+
+**Nếu cần thay đổi BRD:**
+1. Submit Change Request (CR) qua Jira
+2. PM review và assess impact (timeline, cost, scope)
+3. Stakeholder meeting để discuss CR
+4. Vote: Approve/Reject/Defer
+5. Nếu approve → Update BRD version, notify team
+6. Nếu reject → Document reason, close CR
+
+**Change Request Template:**
+```
+CR ID: CR-001
+Requested by: [Name]
+Date: [Date]
+Change: [Description]
+Reason: [Justification]
+Impact: [Timeline/Cost/Scope]
+Priority: [High/Medium/Low]
+Status: [Pending/Approved/Rejected]
+```
+
+---
+
+## 9. Lịch sử tài liệu
+
+| Phiên bản | Ngày | Tác giả | Thay đổi |
+|-----------|------|---------|----------|
+| 0.1 | 01/10/2025 | BA Team | Draft đầu tiên |
+| 0.2 | 08/10/2025 | BA Team | Thêm stakeholders, NFRs |
+| 1.0 | 15/10/2025 | BA Team | Finalized, approved version |
+
+---
+
+## 10. Phụ lục
+
+### 10.1 Glossary (Thuật ngữ)
+
+| Thuật ngữ | Định nghĩa |
+|-----------|-----------|
+| **Agent** | AI model hoặc service có thể chat với user (VD: GPT-4, Gemini) |
+| **Thread** | Một chuỗi conversation có context liên tục |
+| **Token** | Đơn vị đo lường input/output của AI API (1 token ≈ 4 ký tự) |
+| **Microservice** | Independent service trong architecture, có thể scale riêng |
+| **RBAC** | Role-Based Access Control - phân quyền dựa trên role |
+| **STT** | Speech-to-Text - chuyển voice thành text |
+| **TTS** | Text-to-Speech - chuyển text thành voice |
+| **JWT** | JSON Web Token - format token cho authentication |
+| **K8s** | Kubernetes - container orchestration platform |
+
+### 10.2 References (Tham khảo)
+
+- [OpenAI API Documentation](https://platform.openai.com/docs)
+- [Google Gemini API](https://ai.google.dev/docs)
+- [Hugging Face Transformers](https://huggingface.co/docs/transformers)
+- [GDPR Compliance Guide](https://gdpr.eu/)
+- [OWASP Top 10](https://owasp.org/www-project-top-ten/)
+- [Kubernetes Documentation](https://kubernetes.io/docs/)
+
+### 10.3 Related Documents
+
+- [02-SRS.md](02-SRS.md) - Software Requirements Specification
+- [03-User-Stories.md](03-User-Stories.md) - Chi tiết User Stories
 - [System Architecture](../02-architecture/01-System-Architecture.md)
 - [Project Roadmap](../03-project-management/01-Roadmap.md)
 
-### 10.3 Revision History
-
-| Version | Date | Author | Changes |
-|---------|------|--------|---------|
-| 0.1 | Sep 26, 2025 | BA Team | Initial draft |
-| 1.0 | Oct 15, 2025 | Product Owner | Approved for implementation |
-
 ---
 
-**Document Approval**
+**Kết thúc tài liệu**
 
-| Role | Name | Signature | Date |
-|------|------|-----------|------|
-| Product Owner | TBD | ___________ | ______ |
-| Project Manager | thanhhaunv | ___________ | ______ |
-| Stakeholder (Legal) | TBD | ___________ | ______ |
-| Stakeholder (Finance) | TBD | ___________ | ______ |
-
----
-
-*End of Business Requirements Document*
+**📅 Ngày tạo:** 15 tháng 10, 2025  
+**📝 Phiên bản:** 1.0.0  
+**👨‍💻 Người duy trì:** ChatAI Platform Team
