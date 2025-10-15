@@ -704,46 +704,61 @@
     
     **Q45: Can I request data deletion?**  
     A: Yes. Settings → Privacy → Delete Account (30-day grace, then permanent). Or contact support for partial deletion.
+    
+    **Q46: Do you comply with GDPR?**  
+    A: Yes. We comply with GDPR for EU users. See Privacy Policy for details.
+    
+    **Q47: Can admins read my private messages?**  
+    A: Admins can access for legitimate purposes (audit, support, legal). We don't proactively monitor conversations.
+    
+    **Q48: How do I report security issues?**  
+    A: Email security@chatai.com. We have a responsible disclosure policy (no penalties for good-faith reports).
 
 11. Advanced Features
     
-    **Q46: Can I train my own AI model?**  
+    **Q49: Can I train my own AI model?**  
     A: Admins only. Requires ML knowledge. See Admin Guide → ML Training section.
     
-    **Q47: What's a self-hosted agent?**  
+    **Q50: What's a self-hosted agent?**  
     A: AI model deployed on your own infrastructure (Docker container). Gives full control, data stays private.
     
-    **Q48: Can I integrate with other tools (Slack, Teams)?**  
+    **Q51: Can I integrate with other tools (Slack, Teams)?**  
     A: Not yet (roadmap feature). Contact support to request integrations.
     
-    **Q49: API access available?**  
+    **Q52: API access available?**  
     A: For enterprise plans. Contact sales@chatai.com for API documentation.
     
-    **Q50: Can I customize the UI (branding, colors)?**  
+    **Q53: Can I customize the UI (branding, colors)?**  
     A: Enterprise feature. Contact your admin or sales team.
+    
+    **Q54: What programming languages can AI help with?**  
+    A: All major languages (Python, JavaScript, Java, C++, Go, Rust, etc.). GPT-4 best for code.
+    
+    **Q55: Can AI access the internet?**  
+    A: No (by default). Agents process only what you send. Some custom agents may have web search (ask admin).
 
 12. Contact & Support
     
-    **Q51: How do I contact support?**  
+    **Q56: How do I contact support?**  
     A:  
     - Email: support@chatai.com (24h response)  
     - Live chat: Click chat icon (bottom-right, business hours)  
     - Community: https://community.chatai.com
     
-    **Q52: What are support hours?**  
+    **Q57: What are support hours?**  
     A: Email: 24/7. Live chat: Mon-Fri 9am-6pm (your timezone). Emergency: Contact admin.
     
-    **Q53: Do you offer training/onboarding?**  
+    **Q58: Do you offer training/onboarding?**  
     A: Yes (enterprise plans). Contact your admin or customer success manager.
     
-    **Q54: Where can I find video tutorials?**  
+    **Q59: Where can I find video tutorials?**  
     A: https://chatai.com/tutorials (5-10 videos, 2-5 mins each). Topics: Quick Start, Voice, Files, Projects.
     
-    **Q55: How do I suggest new features?**  
+    **Q60: How do I suggest new features?**  
     A: Help → Feature Request → Describe feature → Submit. We review all suggestions!
 
 **Deliverables:**
-- [ ] FAQ with 55+ questions
+- [ ] FAQ with 60 questions (updated from 55)
 - [ ] Searchable (web version with Ctrl+F)
 - [ ] Categorized (12 categories)
 - [ ] Link to relevant guides (User Manual, Admin Guide)
@@ -751,7 +766,7 @@
 
 **Checklist:**
 - [ ] 12 categories complete (General, Account, Chat, Voice/Files, Projects, Billing, Mobile, Technical, Privacy, Advanced, Contact)
-- [ ] 55+ Q&A pairs
+- [ ] 60 Q&A pairs (updated from 55)
 - [ ] Each answer concise (<100 words)
 - [ ] Cross-links to detailed guides
 - [ ] Contact info updated
