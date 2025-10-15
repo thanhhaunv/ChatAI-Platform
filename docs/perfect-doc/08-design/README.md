@@ -617,12 +617,14 @@
    - Actions: Copy, regenerate (AI only), edit (user only)
    - Timestamp: Below message, small text
    - Streaming: Animated dots while AI typing
+   - Accessibility: ARIA labels, keyboard navigation
    
    **4.7 VoiceRecorder (Custom)**
    - States: idle, recording, processing, error
    - UI: Waveform animation, timer, stop button
    - Props: onRecordingComplete (callback with audio blob)
    - Integration: Web Speech API / Whisper API
+   - Accessibility: Visual feedback for deaf users
    
    **4.8 FileUploader (Custom)**
    - Drag & drop area
@@ -630,17 +632,20 @@
    - Validation: File type, size limit (10MB)
    - Progress: Upload progress bar
    - Multiple files: Support batch upload
+   - Accessibility: Keyboard accessible, screen reader support
    
    **4.9 Toast / Notification**
    - Types: success, error, warning, info
    - Position: top-right (default), top-center, bottom-right
    - Duration: Auto-dismiss (3s default), manual close
    - Action: Optional action button (Undo, View)
+   - Accessibility: ARIA live region, focus management
    
    **4.10 Skeleton**
    - Variants: text (lines), circle (avatar), rectangle (card)
    - Animation: Shimmer effect (pulse)
    - Usage: Show during data loading
+   - Accessibility: aria-busy, aria-label "Loading..."
 
 5. Component States Matrix
    
