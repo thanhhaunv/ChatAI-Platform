@@ -30,6 +30,67 @@ docs/
 └── 10-adr/                   # Architecture Decision Records
 ```
 
+```
+```
+docs/
+├── 📂 01-requirements/
+│   ├── 01-BRD.md                         ✅
+│   ├── 02-SRS.md                         ✅
+│   └── 03-User-Stories.md                ❌ Tách từ SRS
+│
+├── 📂 02-architecture/
+│   ├── 01-System-Architecture.md         ❌ Mới
+│   ├── 02-Database-Design-ERD.md         ✅
+│   ├── 03-System-Diagrams.md             ✅
+│   ├── 04-Tech-Stack.md                  ✅
+│   └── 05-API-Specification.yaml         ⚠️
+│
+├── 📂 03-project-management/
+│   ├── 01-Roadmap.md                     ✅
+│   ├── 02-RACI-Matrix.md                 ✅
+│   ├── 03-Sprint-Backlog.md              ✅
+│   └── 04-Deliverables.md                ✅
+│
+├── 📂 04-development/
+│   ├── 01-Coding-Conventions.md          ✅
+│   ├── 02-Architecture-Guidelines.md     ❌ MỚI (file bạn hỏi)
+│   ├── 03-Environment-Setup.md           ❌
+│   ├── 04-Git-Workflow.md                ❌
+│   └── 05-CI-CD-Pipeline.md              ❌
+│
+├── 📂 05-testing/
+│   ├── 01-Test-Plan.md                   ✅
+│   ├── 02-Test-Cases.md                  ❌
+│   └── 03-QA-Checklist.md                ❌
+│
+├── 📂 06-deployment/
+│   ├── 01-Deployment-Guide.md            ❌
+│   ├── 02-Infrastructure-Setup.md        ❌
+│   └── 03-Monitoring-Logging.md          ❌
+│
+├── 📂 07-security/
+│   ├── 01-Security-Guidelines.md         ❌
+│   └── 02-Compliance-GDPR.md             ❌
+│
+├── 📂 08-design/                          ❌ NHÓM MỚI (cho UI/UX)
+│   ├── 01-UI-Wireframes.md               ⚠️ Có nhưng chưa đủ
+│   ├── 02-Design-System.md               ❌ Mới
+│   ├── 03-Component-Library.md           ❌ Mới
+│   └── 04-User-Flows.md                  ❌ Mới
+│
+├── 📂 09-user-guides/
+│   ├── 01-User-Manual.md                 ❌
+│   ├── 02-Admin-Guide.md                 ❌
+│   └── 03-FAQ.md                         ❌
+│
+├── 📂 10-adr/                             ❌ Architecture Decision Records
+│   ├── 0001-use-nestjs.md
+│   ├── 0002-threading-strategy.md
+│   └── 0003-kubernetes-deployment.md
+│
+└── README.md                      
+```
+
 ---
 
 ## 📋 Quick Access
