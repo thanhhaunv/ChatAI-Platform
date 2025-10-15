@@ -697,8 +697,6 @@ ROI Year 1 = ($52,200 / $241,200) × 100% = 21.6%
 5. ✅ Market opportunity lớn (AI tools đang hot)
 6. ✅ Competitive moat với self-hosted + ML features
 
-# Business Requirements Document (BRD)
-
 **Rủi ro được quản lý:** Contingency 20%, phased launch, monitoring metrics
 
 ## 9. Phê duyệt
